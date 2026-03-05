@@ -84,3 +84,13 @@ def seed_db_questions(
     """Seed 25 sample questions into the database (run once)."""
     result = seed_questions(db)
     return result
+
+
+@router.get("/topics")
+def get_topics(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get all available topics and question counts."""
+    from services.interview_service import get_topics_list
+    return get_topics_list(db)
