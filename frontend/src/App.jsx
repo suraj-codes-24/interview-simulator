@@ -390,8 +390,15 @@ function DashboardPage({ token, user, onStart, onLogout }) {
   const [error, setError] = useState("");
 
   const topics = {
-    technical: ["arrays", "linked_list", "trees", "sorting", "dp", "oops", "system_design"],
-    hr: ["behavioral"]
+      technical: [
+          "arrays", "strings", "linked_list", "stacks", "queues",
+          "hashing", "recursion", "binary_search", "sorting",
+          "two_pointers", "sliding_window", "backtracking", "trees",
+          "bst", "heaps", "graphs", "greedy", "dynamic_programming",
+          "tries", "union_find", "oops", "system_design", "dbms",
+          "os_cn", "ml_ai"
+      ],
+      hr: ["behavioral"]
   };
 
   useEffect(() => {
@@ -494,11 +501,11 @@ function DashboardPage({ token, user, onStart, onLogout }) {
               <div>
                 <label className="label">Difficulty</label>
                 <div style={{ display: "flex", gap: 8 }}>
-                  {["easy", "medium", "hard"].map(d => (
+                  {["beginner", "intermediate", "advanced", "expert"].map(d => (
                     <button key={d} className="btn" onClick={() => setForm(f => ({ ...f, difficulty: d }))} style={{
                       flex: 1, padding: "10px 0", fontSize: 11,
                       background: form.difficulty === d
-                        ? d === "easy" ? theme.green : d === "medium" ? theme.yellow : theme.red
+                        ? d === "beginner" ? theme.green : d === "intermediate" ? theme.yellow : d === "advanced" ? theme.accent : theme.red
                         : "transparent",
                       color: form.difficulty === d ? theme.bg : theme.muted,
                       border: `1px solid ${form.difficulty === d ? "transparent" : theme.border}`,
