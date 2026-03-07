@@ -4,6 +4,7 @@ from models.answer import Answer
 from models.question import Question
 from models.interview_session import InterviewSession
 from ai_engine.nlp_engine import evaluate_answer
+from services.memory_service import save_memory
 
 
 def submit_and_score_answer(
@@ -13,13 +14,6 @@ def submit_and_score_answer(
     user_answer: str,
     user_id: int
 ) -> dict:
-    """
-    Main evaluation flow:
-    1. Validate session and question exist
-    2. Run NLP scoring
-    3. Save answer + scores to DB
-    4. Return full result
-    """
 
     # --- Validate session belongs to this user ---
     session = db.query(InterviewSession).filter(
@@ -45,13 +39,26 @@ def submit_and_score_answer(
         question_id=question_id,
         user_answer=user_answer,
         nlp_score=result["nlp_score"],
-        voice_score=0.0,   # Phase 2 — not built yet
-        face_score=0.0,    # Phase 3 — not built yet
-        total_score=result["nlp_score"]  # For now total = nlp score
+        voice_score=0.0,
+        face_score=0.0,
+        total_score=result["nlp_score"]
     )
     db.add(answer)
     db.commit()
     db.refresh(answer)
+
+    # --- Save to conversation memory ---
+    save_memory(
+        db=db,
+        session_id=session_id,
+        question_id=question_id,
+        question_text=question.question_text,
+        user_answer=user_answer,
+        score=result["nlp_score"],
+        topic=question.topic.name if question.topic else "",
+        subtopic=question.subtopic.name if question.subtopic else "",
+        difficulty=question.difficulty,
+    )
 
     return {
         "answer_id": answer.id,
