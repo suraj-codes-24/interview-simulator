@@ -4,15 +4,16 @@ from sqlalchemy import func
 from models.answer import Answer
 from models.interview_session import InterviewSession
 from models.question import Question
+from models.subject import Subject
+from models.topic import Topic
 
 
 def get_user_analytics(db: Session, user_id: int) -> dict:
     """
-    Returns a full performance summary for the user.
-    Covers: overall scores, topic breakdown, strongest/weakest topic.
+    Full performance summary for the user.
+    Now tracks by subject and topic.
     """
 
-    # --- Get all sessions for this user ---
     sessions = db.query(InterviewSession).filter(
         InterviewSession.user_id == user_id
     ).all()
@@ -20,12 +21,11 @@ def get_user_analytics(db: Session, user_id: int) -> dict:
     if not sessions:
         return {
             "message": "No interview sessions found. Start an interview first!",
-            "total_sessions": 0
+            "total_sessions": 0,
         }
 
     session_ids = [s.id for s in sessions]
 
-    # --- Get all answers across all sessions ---
     answers = db.query(Answer).filter(
         Answer.session_id.in_(session_ids)
     ).all()
@@ -34,15 +34,19 @@ def get_user_analytics(db: Session, user_id: int) -> dict:
         return {
             "message": "No answers submitted yet.",
             "total_sessions": len(sessions),
-            "total_answers": 0
+            "total_answers": 0,
         }
 
-    # --- Overall stats ---
+    # ── Overall stats ────────────────────────────────────────────────────
     total_answers = len(answers)
-    avg_nlp_score = round(sum(a.nlp_score for a in answers) / total_answers, 2)
-    avg_total_score = round(sum(a.total_score for a in answers) / total_answers, 2)
+    avg_nlp = round(sum(a.nlp_score for a in answers) / total_answers, 2)
+    avg_total = round(sum(a.total_score for a in answers) / total_answers, 2)
 
-    # --- Topic-wise breakdown ---
+    # ── Subject-level breakdown ──────────────────────────────────────────
+    subject_scores = {}
+    subject_counts = {}
+
+    # ── Topic-level breakdown ────────────────────────────────────────────
     topic_scores = {}
     topic_counts = {}
 
@@ -51,29 +55,37 @@ def get_user_analytics(db: Session, user_id: int) -> dict:
         if not question:
             continue
 
-        topic = question.topic
-        if topic not in topic_scores:
-            topic_scores[topic] = 0.0
-            topic_counts[topic] = 0
+        # Subject level
+        subject = db.query(Subject).filter(Subject.id == question.subject_id).first()
+        if subject:
+            sname = subject.name
+            subject_scores[sname] = subject_scores.get(sname, 0.0) + answer.nlp_score
+            subject_counts[sname] = subject_counts.get(sname, 0) + 1
 
-        topic_scores[topic] += answer.nlp_score
-        topic_counts[topic] += 1
+        # Topic level
+        topic = db.query(Topic).filter(Topic.id == question.topic_id).first()
+        if topic:
+            tname = topic.name
+            topic_scores[tname] = topic_scores.get(tname, 0.0) + answer.nlp_score
+            topic_counts[tname] = topic_counts.get(tname, 0) + 1
 
-    # Calculate average per topic
-    topic_averages = {}
-    for topic in topic_scores:
-        topic_averages[topic] = round(topic_scores[topic] / topic_counts[topic], 2)
+    subject_averages = {
+        s: round(subject_scores[s] / subject_counts[s], 2)
+        for s in subject_scores
+    }
+    topic_averages = {
+        t: round(topic_scores[t] / topic_counts[t], 2)
+        for t in topic_scores
+    }
 
-    # --- Strongest and weakest topic ---
     strongest_topic = max(topic_averages, key=topic_averages.get) if topic_averages else "N/A"
     weakest_topic = min(topic_averages, key=topic_averages.get) if topic_averages else "N/A"
 
-    # --- Performance label ---
-    if avg_nlp_score >= 75:
+    if avg_nlp >= 75:
         performance = "Excellent 🔥"
-    elif avg_nlp_score >= 55:
+    elif avg_nlp >= 55:
         performance = "Good 👍"
-    elif avg_nlp_score >= 35:
+    elif avg_nlp >= 35:
         performance = "Average 📈 — Keep practicing!"
     else:
         performance = "Needs Improvement 💪 — Don't give up!"
@@ -81,10 +93,11 @@ def get_user_analytics(db: Session, user_id: int) -> dict:
     return {
         "total_sessions": len(sessions),
         "total_answers": total_answers,
-        "avg_nlp_score": avg_nlp_score,
-        "avg_total_score": avg_total_score,
+        "avg_nlp_score": avg_nlp,
+        "avg_total_score": avg_total,
         "strongest_topic": strongest_topic,
         "weakest_topic": weakest_topic,
+        "subject_breakdown": subject_averages,
         "topic_breakdown": topic_averages,
-        "performance": performance
+        "performance": performance,
     }

@@ -5,6 +5,22 @@ from routes.interview_routes import router as interview_router
 from routes.answer_routes import router as answer_router
 from routes.analytics_routes import router as analytics_router
 
+from database import engine, Base
+
+# Import all models so SQLAlchemy creates all tables
+import models.user
+import models.subject
+import models.topic
+import models.subtopic
+import models.question
+import models.interview_session
+import models.answer
+import models.score
+import models.analytics
+
+# Create all tables on startup
+Base.metadata.create_all(bind=engine)
+
 app = FastAPI(title="Interview Simulator API")
 
 app.add_middleware(

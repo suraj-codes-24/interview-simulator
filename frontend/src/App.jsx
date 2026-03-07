@@ -65,6 +65,7 @@ const css = `
     border-radius: 12px;
     position: relative;
     z-index: 1;
+    transition: all 0.2s;
   }
 
   .card::before {
@@ -94,10 +95,15 @@ const css = `
     color: ${theme.bg};
   }
 
-  .btn-primary:hover {
+  .btn-primary:hover:not(:disabled) {
     background: #33eaff;
     box-shadow: 0 0 20px rgba(0,229,255,0.4);
     transform: translateY(-1px);
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   .btn-secondary {
@@ -106,7 +112,7 @@ const css = `
     border: 1px solid ${theme.border};
   }
 
-  .btn-secondary:hover {
+  .btn-secondary:hover:not(:disabled) {
     border-color: ${theme.accent};
     background: rgba(0,229,255,0.05);
   }
@@ -163,9 +169,10 @@ const css = `
 
   .tag-technical { background: rgba(0,229,255,0.12); color: ${theme.accent}; }
   .tag-hr { background: rgba(255,209,102,0.12); color: ${theme.yellow}; }
-  .tag-easy { background: rgba(0,255,136,0.12); color: ${theme.green}; }
-  .tag-medium { background: rgba(255,209,102,0.12); color: ${theme.yellow}; }
-  .tag-hard { background: rgba(255,77,109,0.12); color: ${theme.red}; }
+  .tag-beginner { background: rgba(0,255,136,0.12); color: ${theme.green}; }
+  .tag-intermediate { background: rgba(255,209,102,0.12); color: ${theme.yellow}; }
+  .tag-advanced { background: rgba(0,229,255,0.12); color: ${theme.accent}; }
+  .tag-expert { background: rgba(255,77,109,0.12); color: ${theme.red}; }
 
   .score-bar-bg {
     height: 6px;
@@ -239,6 +246,14 @@ const css = `
     color: ${theme.green};
     font-size: 13px;
   }
+  
+  .subject-card {
+    cursor: pointer;
+  }
+  .subject-card:hover {
+    border-color: ${theme.accent};
+    transform: translateY(-4px);
+  }
 `;
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -300,7 +315,7 @@ function LoginPage({ onLogin }) {
       localStorage.setItem("user", JSON.stringify(d.user));
       onLogin(d.access_token, d.user);
     } catch {
-      setError("Cannot connect to server. Is uvicorn running?");
+      setError("Cannot connect to server. Is FastAPI running?");
     }
     setLoading(false);
   }
@@ -382,51 +397,44 @@ function LoginPage({ onLogin }) {
 
 // ─── Dashboard Page ────────────────────────────────────────────────────────────
 
-function DashboardPage({ token, user, onStart, onLogout }) {
+function DashboardPage({ token, user, onSelectSubject, onLogout }) {
   const [analytics, setAnalytics] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ interview_type: "technical", topic: "arrays", difficulty: "medium" });
-  const [starting, setStarting] = useState(false);
-  const [error, setError] = useState("");
-
-  const topics = {
-      technical: [
-          "arrays", "strings", "linked_list", "stacks", "queues",
-          "hashing", "recursion", "binary_search", "sorting",
-          "two_pointers", "sliding_window", "backtracking", "trees",
-          "bst", "heaps", "graphs", "greedy", "dynamic_programming",
-          "tries", "union_find", "oops", "system_design", "dbms",
-          "os_cn", "ml_ai"
-      ],
-      hr: ["behavioral"]
-  };
+  const [subjects, setSubjects] = useState([]);
+  const [loadingA, setLoadingA] = useState(true);
+  const [loadingS, setLoadingS] = useState(true);
 
   useEffect(() => {
     fetch(`${API}/analytics/me`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json()).then(d => { setAnalytics(d); setLoading(false); })
-      .catch(() => setLoading(false));
+      .then(r => {
+        if (r.status === 401) onLogout();
+        if (!r.ok) throw new Error("Failed");
+        return r.json();
+      })
+      .then(d => { setAnalytics(d); setLoadingA(false); })
+      .catch(() => setLoadingA(false));
+      
+    fetch(`${API}/interview/subjects`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => {
+        if (r.status === 401) onLogout();
+        if (!r.ok) throw new Error("Failed");
+        return r.json();
+      })
+      .then(d => {
+        if (Array.isArray(d)) {
+          setSubjects(d);
+        } else {
+          setSubjects([]);
+        }
+        setLoadingS(false);
+      })
+      .catch(() => setLoadingS(false));
   }, []);
-
-  async function startInterview() {
-    setError(""); setStarting(true);
-    try {
-      const r = await fetch(`${API}/interview/start`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(form)
-      });
-      const d = await r.json();
-      if (!r.ok) { setError(d.detail || "Failed to start"); setStarting(false); return; }
-      onStart(d.session_id, form.topic, form.difficulty, form.interview_type);
-    } catch { setError("Server error"); }
-    setStarting(false);
-  }
 
   const perf = analytics?.avg_nlp_score;
   const perfColor = perf >= 70 ? theme.green : perf >= 45 ? theme.yellow : theme.red;
 
   return (
-    <div style={{ minHeight: "100vh", background: theme.bg, paddingTop: 60 }}>
+    <div style={{ minHeight: "100vh", background: theme.bg, paddingTop: 60, paddingBottom: 60 }}>
       <div className="grid-bg" />
 
       {/* Nav */}
@@ -450,7 +458,7 @@ function DashboardPage({ token, user, onStart, onLogout }) {
         {/* Header */}
         <div className="fade-in" style={{ marginBottom: 36 }}>
           <p style={{ fontSize: 12, color: theme.accent, letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 6 }}>
-            Welcome back
+            Dashboard
           </p>
           <h1 className="title" style={{ fontSize: 36, color: "#fff" }}>
             Ready to practice, <span style={{ color: theme.accent }}>{user?.name?.split(" ")[0]}?</span>
@@ -458,7 +466,7 @@ function DashboardPage({ token, user, onStart, onLogout }) {
         </div>
 
         {/* Stats Row */}
-        <div className="fade-in" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, marginBottom: 32 }}>
+        <div className="fade-in" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, marginBottom: 40 }}>
           {[
             { label: "Sessions", value: analytics?.total_sessions ?? "—", color: theme.accent },
             { label: "Answers", value: analytics?.total_answers ?? "—", color: theme.yellow },
@@ -467,97 +475,248 @@ function DashboardPage({ token, user, onStart, onLogout }) {
           ].map(s => (
             <div key={s.label} className="card" style={{ padding: "20px 24px" }}>
               <div style={{ fontSize: 11, color: theme.muted, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>{s.label}</div>
-              <div className="title" style={{ fontSize: 26, color: s.color }}>{loading ? "…" : s.value}</div>
+              <div className="title" style={{ fontSize: 26, color: s.color }}>{loadingA ? "…" : s.value}</div>
             </div>
           ))}
         </div>
 
-        {/* Two Columns */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-
-          {/* Start Interview */}
-          <div className="card fade-in" style={{ padding: 28 }}>
-            <h2 className="title" style={{ fontSize: 20, color: "#fff", marginBottom: 20 }}>
-              Start Interview
-            </h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <div>
-                <label className="label">Type</label>
-                <select className="input" value={form.interview_type}
-                  onChange={e => setForm(f => ({ ...f, interview_type: e.target.value, topic: topics[e.target.value][0] }))}>
-                  <option value="technical">Technical</option>
-                  <option value="hr">HR / Behavioral</option>
-                </select>
-              </div>
-              <div>
-                <label className="label">Topic</label>
-                <select className="input" value={form.topic}
-                  onChange={e => setForm(f => ({ ...f, topic: e.target.value }))}>
-                  {topics[form.interview_type].map(t => (
-                    <option key={t} value={t}>{t.replace("_", " ").toUpperCase()}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="label">Difficulty</label>
-                <div style={{ display: "flex", gap: 8 }}>
-                  {["beginner", "intermediate", "advanced", "expert"].map(d => (
-                    <button key={d} className="btn" onClick={() => setForm(f => ({ ...f, difficulty: d }))} style={{
-                      flex: 1, padding: "10px 0", fontSize: 11,
-                      background: form.difficulty === d
-                        ? d === "beginner" ? theme.green : d === "intermediate" ? theme.yellow : d === "advanced" ? theme.accent : theme.red
-                        : "transparent",
-                      color: form.difficulty === d ? theme.bg : theme.muted,
-                      border: `1px solid ${form.difficulty === d ? "transparent" : theme.border}`,
-                      borderRadius: 6,
-                    }}>{d}</button>
-                  ))}
-                </div>
-              </div>
-
-              {error && <div className="error-msg">{error}</div>}
-
-              <button className="btn btn-primary" onClick={startInterview} disabled={starting}
-                style={{ width: "100%", padding: "14px", marginTop: 4 }}>
-                {starting ? <Loader /> : "→ Start Interview"}
-              </button>
-            </div>
-          </div>
-
-          {/* Topic Breakdown */}
-          <div className="card fade-in" style={{ padding: 28 }}>
-            <h2 className="title" style={{ fontSize: 20, color: "#fff", marginBottom: 20 }}>
-              Topic Performance
-            </h2>
-            {loading ? (
-              <div style={{ display: "flex", justifyContent: "center", padding: 40 }}><Loader /></div>
-            ) : analytics?.topic_breakdown && Object.keys(analytics.topic_breakdown).length > 0 ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                {Object.entries(analytics.topic_breakdown).map(([topic, score]) => (
-                  <div key={topic}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                      <span style={{ fontSize: 12, color: theme.text }}>{topic.replace("_", " ")}</span>
-                      <span style={{ fontSize: 12, color: score >= 70 ? theme.green : score >= 45 ? theme.yellow : theme.red, fontWeight: 600 }}>
-                        {score}%
-                      </span>
+        {/* Subjects Grid */}
+        <div className="fade-in">
+          <h2 className="title" style={{ fontSize: 22, color: "#fff", marginBottom: 20 }}>
+            Select a Subject
+          </h2>
+          {loadingS ? (
+             <div style={{ display: "flex", justifyContent: "center", padding: 40 }}><Loader /></div>
+          ) : subjects.length === 0 ? (
+             <div className="card" style={{ padding: 40, textAlign: "center", color: theme.muted }}>
+               No subjects found. Please seed the database!
+             </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 20 }}>
+              {subjects.map((s, i) => (
+                <div key={s.id} className="card subject-card" onClick={() => onSelectSubject(s)} 
+                     style={{ padding: 24, animationDelay: `${i * 0.05}s` }}>
+                  <h3 className="title" style={{ fontSize: 20, color: "#fff", marginBottom: 12 }}>{s.name}</h3>
+                  <div style={{ display: "flex", gap: 16 }}>
+                    <div>
+                      <div style={{ fontSize: 24, color: theme.accent, fontFamily: theme.display, fontWeight: 700 }}>{s.topic_count}</div>
+                      <div style={{ fontSize: 10, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.1em" }}>Topics</div>
                     </div>
-                    <ScoreBar value={score} />
+                    <div>
+                      <div style={{ fontSize: 24, color: theme.yellow, fontFamily: theme.display, fontWeight: 700 }}>{s.question_count}</div>
+                      <div style={{ fontSize: 10, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.1em" }}>Questions</div>
+                    </div>
                   </div>
-                ))}
-                <div style={{ marginTop: 8, padding: "12px 16px", background: "rgba(0,0,0,0.3)", borderRadius: 8 }}>
-                  <span style={{ fontSize: 12, color: theme.muted }}>Weakest: </span>
-                  <span style={{ fontSize: 12, color: theme.red }}>{analytics.weakest_topic}</span>
-                  <span style={{ fontSize: 12, color: theme.muted }}> · Strongest: </span>
-                  <span style={{ fontSize: 12, color: theme.green }}>{analytics.strongest_topic}</span>
+                  {/* Subject specific analytics if available */}
+                  {analytics?.subject_breakdown?.[s.name] && (
+                    <div style={{ marginTop: 20 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 11 }}>
+                        <span style={{ color: theme.muted, textTransform: "uppercase", letterSpacing: "0.05em" }}>Proficiency</span>
+                        <span style={{ color: theme.text, fontWeight: 600 }}>{analytics.subject_breakdown[s.name]}%</span>
+                      </div>
+                      <ScoreBar value={analytics.subject_breakdown[s.name]} />
+                    </div>
+                  )}
                 </div>
-              </div>
-            ) : (
-              <div style={{ textAlign: "center", padding: "40px 0", color: theme.muted }}>
-                <div style={{ fontSize: 32, marginBottom: 12 }}>📊</div>
-                <p style={{ fontSize: 13 }}>No data yet — complete your first interview!</p>
-              </div>
-            )}
-          </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+// ─── Subject Flow Page ─────────────────────────────────────────────────────────
+
+function SubjectPage({ token, subject, onBack, onStart }) {
+  const [topics, setTopics] = useState([]);
+  const [loadingT, setLoadingT] = useState(true);
+  const [selectedTopic, setSelectedTopic] = useState(null);
+  
+  const [subtopics, setSubtopics] = useState([]);
+  const [loadingST, setLoadingST] = useState(false);
+  
+  const [form, setForm] = useState({ 
+      subtopic_id: "", 
+      difficulty: "medium", 
+      interview_type: subject.name === "Behavioral" ? "hr" : "technical" 
+  });
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    fetch(`${API}/interview/topics?subject_id=${subject.id}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json()).then(d => { setTopics(d); setLoadingT(false); })
+      .catch(() => setLoadingT(false));
+  }, [subject.id]);
+  
+  // When a topic is selected, fetch its subtopics
+  function handleSelectTopic(t) {
+      setSelectedTopic(t);
+      setSubtopics([]);
+      setForm(f => ({ ...f, subtopic_id: "" }));
+      setLoadingST(true);
+      fetch(`${API}/interview/subtopics?topic_id=${t.id}`, { headers: { Authorization: `Bearer ${token}` } })
+          .then(r => r.json()).then(d => { 
+              setSubtopics(d); 
+              if(d.length > 0) setForm(f => ({ ...f, subtopic_id: d[0].id }));
+              setLoadingST(false); 
+          })
+          .catch(() => setLoadingST(false));
+  }
+
+  async function startInterview() {
+    setError(""); setStarting(true);
+    
+    // Validate
+    if (!selectedTopic) { setError("Please select a topic."); setStarting(false); return; }
+    
+    try {
+      const payload = {
+          interview_type: form.interview_type,
+          subject_id: subject.id,
+          topic_id: selectedTopic.id,
+          subtopic_id: form.subtopic_id ? Number(form.subtopic_id) : null,
+          difficulty: form.difficulty
+      };
+      
+      const r = await fetch(`${API}/interview/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload)
+      });
+      const d = await r.json();
+      if (!r.ok) { setError(d.detail || "Failed to start"); setStarting(false); return; }
+      
+      // Pass full details to Interview room
+      onStart({
+          sessionId: d.session_id,
+          subjectId: subject.id,
+          topicId: selectedTopic.id,
+          subtopicId: payload.subtopic_id,
+          difficulty: payload.difficulty,
+          interviewType: payload.interview_type
+      });
+    } catch { setError("Server error"); }
+    setStarting(false);
+  }
+
+  return (
+    <div style={{ minHeight: "100vh", background: theme.bg, paddingTop: 60, paddingBottom: 60 }}>
+      <div className="grid-bg" />
+
+      {/* Nav */}
+      <nav className="nav">
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <button className="btn btn-secondary" onClick={onBack} style={{ padding: "6px 14px", fontSize: 11 }}>
+            ← Back
+          </button>
+          <span style={{ fontSize: 12, color: theme.muted }}>
+             {subject.name}
+          </span>
+        </div>
+      </nav>
+
+      <div style={{ maxWidth: 1000, margin: "0 auto", padding: "40px 24px", position: "relative", zIndex: 1 }}>
+        <div className="fade-in" style={{ marginBottom: 36 }}>
+          <h1 className="title" style={{ fontSize: 36, color: "#fff" }}>
+            {subject.name}
+          </h1>
+          <p style={{ fontSize: 14, color: theme.muted, marginTop: 8 }}>
+            Select a topic to focus your practice
+          </p>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 24, alignItems: "start" }}>
+           {/* Topics List */}
+           <div className="card fade-in" style={{ padding: 24 }}>
+               <h2 className="title" style={{ fontSize: 20, color: "#fff", marginBottom: 20 }}>Topics</h2>
+               
+               {loadingT ? (
+                   <div style={{ display: "flex", justifyContent: "center", padding: 40 }}><Loader /></div>
+               ) : topics.length === 0 ? (
+                   <div style={{ color: theme.muted }}>No topics found.</div>
+               ) : (
+                   <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                       {topics.map(t => (
+                           <div key={t.id} onClick={() => handleSelectTopic(t)} className="card subject-card" style={{ 
+                               padding: "16px 20px", 
+                               borderColor: selectedTopic?.id === t.id ? theme.accent : theme.border,
+                               background: selectedTopic?.id === t.id ? "rgba(0,229,255,0.05)" : theme.card,
+                               display: "flex", justifyContent: "space-between", alignItems: "center"
+                           }}>
+                               <div>
+                                   <div style={{ fontSize: 15, color: theme.text, fontWeight: 600 }}>{t.name}</div>
+                                   <div style={{ fontSize: 11, color: theme.muted, marginTop: 4 }}>
+                                       {t.subtopic_count} subtopics · {t.question_count} questions
+                                   </div>
+                               </div>
+                               <div style={{ color: selectedTopic?.id === t.id ? theme.accent : theme.muted }}>
+                                   →
+                               </div>
+                           </div>
+                       ))}
+                   </div>
+               )}
+           </div>
+           
+           {/* Subtopic & Difficulty Selector */}
+           <div className="card fade-in" style={{ padding: 24, position: "sticky", top: 84 }}>
+               <h2 className="title" style={{ fontSize: 20, color: "#fff", marginBottom: 20 }}>Configure</h2>
+               
+               {!selectedTopic ? (
+                   <p style={{ fontSize: 13, color: theme.muted, lineHeight: 1.5 }}>
+                       Please select a topic from the left to configure your interview session.
+                   </p>
+               ) : (
+                   <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                       <div style={{ background: "rgba(0,0,0,0.3)", padding: 16, borderRadius: 8, border: `1px solid ${theme.border}` }}>
+                           <div style={{ fontSize: 11, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>Selected Topic</div>
+                           <div style={{ fontSize: 15, color: theme.accent, fontWeight: 600 }}>{selectedTopic.name}</div>
+                       </div>
+                       
+                       {/* Subtopic */}
+                       <div>
+                           <label className="label">Focus Subtopic (Optional)</label>
+                           {loadingST ? <Loader /> : (
+                               <select className="input" value={form.subtopic_id} onChange={e => setForm(f => ({ ...f, subtopic_id: e.target.value }))}>
+                                   <option value="">Any Subtopic (Random)</option>
+                                    {subtopics.map(st => (
+                                       <option key={st.id} value={st.id}>{st.name} ({st.question_count} Qs)</option>
+                                    ))}
+                               </select>
+                           )}
+                       </div>
+                       
+                       {/* Difficulty */}
+                       <div>
+                         <label className="label">Difficulty</label>
+                         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                           {["beginner", "intermediate", "advanced", "expert"].map(d => (
+                             <button key={d} className="btn" onClick={() => setForm(f => ({ ...f, difficulty: d }))} style={{
+                               flex: "1 1 40%", padding: "10px 0", fontSize: 11,
+                               background: form.difficulty === d
+                                 ? d === "beginner" ? theme.green : d === "intermediate" ? theme.yellow : d === "advanced" ? theme.accent : theme.red
+                                 : "transparent",
+                               color: form.difficulty === d ? theme.bg : theme.muted,
+                               border: `1px solid ${form.difficulty === d ? "transparent" : theme.border}`,
+                               borderRadius: 6,
+                             }}>{d}</button>
+                           ))}
+                         </div>
+                       </div>
+                       
+                       {error && <div className="error-msg">{error}</div>}
+
+                       <button className="btn btn-primary" onClick={startInterview} disabled={starting}
+                         style={{ width: "100%", padding: "14px", marginTop: 8 }}>
+                         {starting ? <Loader /> : "→ Start Interview"}
+                       </button>
+                   </div>
+               )}
+           </div>
         </div>
       </div>
     </div>
@@ -566,7 +725,7 @@ function DashboardPage({ token, user, onStart, onLogout }) {
 
 // ─── Interview Room Page ────────────────────────────────────────────────────────
 
-function InterviewRoomPage({ token, sessionId, topic, difficulty, interviewType, onResult, onBack }) {
+function InterviewRoomPage({ token, sessionData, onResult, onBack }) {
   const [question, setQuestion] = useState(null);
   const [answer, setAnswer] = useState("");
   const [result, setResult] = useState(null);
@@ -574,13 +733,19 @@ function InterviewRoomPage({ token, sessionId, topic, difficulty, interviewType,
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [questionNum, setQuestionNum] = useState(1);
+  
+  const { sessionId, subjectId, topicId, subtopicId, difficulty, interviewType } = sessionData;
 
   useEffect(() => { fetchQuestion(); }, []);
 
   async function fetchQuestion() {
     setLoading(true); setResult(null); setAnswer(""); setError("");
     try {
-      const r = await fetch(`${API}/interview/question?topic=${topic}&difficulty=${difficulty}`,
+      let query = `subject_id=${subjectId}&difficulty=${difficulty}`;
+      if (topicId) query += `&topic_id=${topicId}`;
+      if (subtopicId) query += `&subtopic_id=${subtopicId}`;
+      
+      const r = await fetch(`${API}/interview/question?${query}`,
         { headers: { Authorization: `Bearer ${token}` } });
       const d = await r.json();
       if (!r.ok) { setError(d.detail || "Failed to fetch question"); setLoading(false); return; }
@@ -613,7 +778,7 @@ function InterviewRoomPage({ token, sessionId, topic, difficulty, interviewType,
   const scoreColor = result ? (result.nlp_score >= 70 ? theme.green : result.nlp_score >= 45 ? theme.yellow : theme.red) : theme.accent;
 
   return (
-    <div style={{ minHeight: "100vh", background: theme.bg, paddingTop: 60 }}>
+    <div style={{ minHeight: "100vh", background: theme.bg, paddingTop: 60, paddingBottom: 60 }}>
       <div className="grid-bg" />
 
       <nav className="nav">
@@ -626,9 +791,16 @@ function InterviewRoomPage({ token, sessionId, topic, difficulty, interviewType,
         <div style={{ display: "flex", gap: 8 }}>
           <span className={`tag tag-${interviewType}`}>{interviewType}</span>
           <span className={`tag tag-${difficulty}`}>{difficulty}</span>
-          <span className="tag" style={{ background: "rgba(0,229,255,0.08)", color: theme.accent }}>
-            {topic.replace("_", " ")}
-          </span>
+          {question && (
+              <>
+                  <span className="tag" style={{ background: "rgba(0,229,255,0.08)", color: theme.accent }}>
+                    {question.subject_name}
+                  </span>
+                  <span className="tag" style={{ background: "rgba(0,229,255,0.08)", color: theme.accent }}>
+                    {question.topic_name}
+                  </span>
+              </>
+          )}
         </div>
       </nav>
 
@@ -638,7 +810,7 @@ function InterviewRoomPage({ token, sessionId, topic, difficulty, interviewType,
         <div className="card fade-in" style={{ padding: 32, marginBottom: 20 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
             <span style={{ fontSize: 11, color: theme.muted, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-              Question {questionNum}
+              Question {questionNum} {question && `· ${question.subtopic_name}`}
             </span>
             {question && <span className={`tag tag-${question.type}`}>{question.type}</span>}
           </div>
@@ -650,7 +822,7 @@ function InterviewRoomPage({ token, sessionId, topic, difficulty, interviewType,
               {question.question_text}
             </p>
           ) : (
-            <div className="error-msg">Could not load question. Try a different topic/difficulty.</div>
+            <div className="error-msg">{error || "Could not load question. Try a different topic/difficulty."}</div>
           )}
         </div>
 
@@ -712,7 +884,7 @@ function InterviewRoomPage({ token, sessionId, topic, difficulty, interviewType,
               <button className="btn btn-green" onClick={nextQuestion} style={{ flex: 1, padding: "13px" }}>
                 → Next Question
               </button>
-              <button className="btn btn-secondary" onClick={() => onResult(result)} style={{ padding: "13px 20px" }}>
+              <button className="btn btn-secondary" onClick={onResult} style={{ padding: "13px 20px" }}>
                 View Summary
               </button>
             </div>
@@ -738,7 +910,7 @@ function ResultPage({ token, onBack }) {
   const scoreColor = score >= 70 ? theme.green : score >= 45 ? theme.yellow : theme.red;
 
   return (
-    <div style={{ minHeight: "100vh", background: theme.bg, paddingTop: 60 }}>
+    <div style={{ minHeight: "100vh", background: theme.bg, paddingTop: 60, paddingBottom: 60 }}>
       <div className="grid-bg" />
       <div className="glow" style={{ top: "0", left: "50%", transform: "translateX(-50%)" }} />
 
@@ -763,7 +935,7 @@ function ResultPage({ token, onBack }) {
                 {score ?? "—"}%
               </div>
               <p style={{ fontSize: 16, color: theme.text, marginTop: 12, fontFamily: theme.display }}>
-                {analytics?.performance}
+                {analytics?.performance || "Complete some interviews to get performance data."}
               </p>
               <div style={{ display: "flex", justifyContent: "center", gap: 24, marginTop: 24 }}>
                 <div style={{ textAlign: "center" }}>
@@ -778,17 +950,40 @@ function ResultPage({ token, onBack }) {
               </div>
             </div>
 
+            {/* Subject Breakdown */}
+            {analytics?.subject_breakdown && Object.keys(analytics.subject_breakdown).length > 0 && (
+              <div className="card fade-in" style={{ padding: 28, marginBottom: 20 }}>
+                <h2 className="title" style={{ fontSize: 20, color: "#fff", marginBottom: 20 }}>Subject Breakdown</h2>
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  {Object.entries(analytics.subject_breakdown)
+                    .sort(([,a],[,b]) => b - a)
+                    .map(([subject, score]) => (
+                    <div key={subject}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                        <span style={{ fontSize: 13, color: theme.text }}>{subject}</span>
+                        <span style={{ fontSize: 13, fontWeight: 600,
+                          color: score >= 70 ? theme.green : score >= 45 ? theme.yellow : theme.red }}>
+                          {score}%
+                        </span>
+                      </div>
+                      <ScoreBar value={score} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
             {/* Topic Breakdown */}
             {analytics?.topic_breakdown && Object.keys(analytics.topic_breakdown).length > 0 && (
               <div className="card fade-in" style={{ padding: 28, marginBottom: 20 }}>
-                <h2 className="title" style={{ fontSize: 20, color: "#fff", marginBottom: 20 }}>Topic Breakdown</h2>
+                <h2 className="title" style={{ fontSize: 20, color: "#fff", marginBottom: 20 }}>Detailed Topic Breakdown</h2>
                 <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                   {Object.entries(analytics.topic_breakdown)
                     .sort(([,a],[,b]) => b - a)
                     .map(([topic, score]) => (
                     <div key={topic}>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                        <span style={{ fontSize: 13, color: theme.text }}>{topic.replace("_", " ").toUpperCase()}</span>
+                        <span style={{ fontSize: 13, color: theme.text }}>{topic}</span>
                         <span style={{ fontSize: 13, fontWeight: 600,
                           color: score >= 70 ? theme.green : score >= 45 ? theme.yellow : theme.red }}>
                           {score}%
@@ -802,15 +997,17 @@ function ResultPage({ token, onBack }) {
             )}
 
             {/* Advice */}
-            <div className="card fade-in" style={{ padding: 24, borderLeft: `3px solid ${theme.accent}` }}>
-              <p style={{ fontSize: 13, color: theme.muted, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                Focus Area
-              </p>
-              <p style={{ fontSize: 15, color: theme.text, lineHeight: 1.6 }}>
-                Practice more on <span style={{ color: theme.red }}>{analytics?.weakest_topic?.replace("_", " ")}</span>.
-                Your strongest area is <span style={{ color: theme.green }}>{analytics?.strongest_topic?.replace("_", " ")}</span> — keep it up!
-              </p>
-            </div>
+            {analytics?.weakest_topic && analytics?.strongest_topic && (
+                <div className="card fade-in" style={{ padding: 24, borderLeft: `3px solid ${theme.accent}` }}>
+                  <p style={{ fontSize: 13, color: theme.muted, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                    Focus Area
+                  </p>
+                  <p style={{ fontSize: 15, color: theme.text, lineHeight: 1.6 }}>
+                    Practice more on <span style={{ color: theme.red }}>{analytics.weakest_topic}</span>.
+                    Your strongest area is <span style={{ color: theme.green }}>{analytics.strongest_topic}</span> — keep it up!
+                  </p>
+                </div>
+            )}
 
             <button className="btn btn-primary" onClick={onBack}
               style={{ width: "100%", marginTop: 20, padding: "14px" }}>
@@ -831,7 +1028,9 @@ export default function App() {
   const [user, setUser] = useState(() => {
     try { return JSON.parse(localStorage.getItem("user")) || null; } catch { return null; }
   });
-  const [session, setSession] = useState(null);
+  
+  const [activeSubject, setActiveSubject] = useState(null);
+  const [sessionData, setSessionData] = useState(null);
 
   useEffect(() => {
     if (token && user) setPage("dashboard");
@@ -846,27 +1045,38 @@ export default function App() {
     setToken(""); setUser(null); setPage("login");
   }
 
-  function handleStart(sessionId, topic, difficulty, interviewType) {
-    setSession({ sessionId, topic, difficulty, interviewType });
-    setPage("interview");
-  }
-
   return (
     <>
       <style>{css}</style>
       {page === "login" && <LoginPage onLogin={handleLogin} />}
-      {page === "dashboard" && <DashboardPage token={token} user={user} onStart={handleStart} onLogout={handleLogout} />}
-      {page === "interview" && session && (
+      
+      {page === "dashboard" && (
+          <DashboardPage 
+            token={token} 
+            user={user} 
+            onSelectSubject={s => { setActiveSubject(s); setPage("subject"); }}
+            onLogout={handleLogout} 
+          />
+      )}
+      
+      {page === "subject" && (
+          <SubjectPage
+             token={token}
+             subject={activeSubject}
+             onBack={() => setPage("dashboard")}
+             onStart={(sd) => { setSessionData(sd); setPage("interview"); }}
+          />
+      )}
+      
+      {page === "interview" && sessionData && (
         <InterviewRoomPage
           token={token}
-          sessionId={session.sessionId}
-          topic={session.topic}
-          difficulty={session.difficulty}
-          interviewType={session.interviewType}
+          sessionData={sessionData}
           onResult={() => setPage("result")}
           onBack={() => setPage("dashboard")}
         />
       )}
+      
       {page === "result" && <ResultPage token={token} onBack={() => setPage("dashboard")} />}
     </>
   );

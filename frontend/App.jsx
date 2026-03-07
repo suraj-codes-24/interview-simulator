@@ -2,712 +2,450 @@ import { useState, useEffect } from "react";
 
 const API = "http://127.0.0.1:8000";
 
-const theme = {
-  bg: "#0a0e1a",
-  card: "#0f1525",
-  border: "#1e2d4a",
-  accent: "#00e5ff",
-  green: "#00ff88",
-  red: "#ff4d6d",
-  yellow: "#ffd166",
-  text: "#c8d8f0",
-  muted: "#4a6080",
-  font: "'JetBrains Mono', 'Fira Code', monospace",
-  display: "'Syne', sans-serif",
+const T = {
+  bg:      "#07090f",
+  card:    "#0c0f1a",
+  border:  "#1a2035",
+  accent:  "#7c6aff",
+  accentB: "#5b4de0",
+  green:   "#22d98a",
+  red:     "#ff4f6e",
+  yellow:  "#f5c542",
+  text:    "#dde3f0",
+  muted:   "#3d4f72",
+  font:    "'Space Mono', 'Courier New', monospace",
+  display: "'Outfit', sans-serif",
 };
 
-const css = `
-  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=JetBrains+Mono:wght@300;400;600&display=swap');
+const css = [
+  "@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap');",
+  "* { box-sizing: border-box; margin: 0; padding: 0; }",
+  "body { background: #07090f; color: #dde3f0; font-family: 'Space Mono', 'Courier New', monospace; min-height: 100vh; }",
+  ".grid-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; background-image: linear-gradient(rgba(124,106,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(124,106,255,0.04) 1px, transparent 1px); background-size: 48px 48px; }",
+  ".glow-purple { position: fixed; pointer-events: none; z-index: 0; width: 700px; height: 700px; border-radius: 50%; background: radial-gradient(circle, rgba(124,106,255,0.07) 0%, transparent 70%); top: -200px; left: -100px; }",
+  ".glow-blue { position: fixed; pointer-events: none; z-index: 0; width: 500px; height: 500px; border-radius: 50%; background: radial-gradient(circle, rgba(34,217,138,0.05) 0%, transparent 70%); bottom: -100px; right: -100px; }",
+  ".card { background: #0c0f1a; border: 1px solid #1a2035; border-radius: 16px; position: relative; z-index: 1; }",
+  ".card-glow { box-shadow: 0 0 40px rgba(124,106,255,0.08); }",
+  ".btn { font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; border: none; border-radius: 10px; cursor: pointer; transition: all 0.18s; padding: 12px 24px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }",
+  ".btn-primary { background: linear-gradient(135deg, #7c6aff, #5b4de0); color: #fff; }",
+  ".btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(124,106,255,0.35); }",
+  ".btn-primary:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }",
+  ".btn-ghost { background: transparent; color: #3d4f72; border: 1px solid #1a2035; }",
+  ".btn-ghost:hover { border-color: rgba(124,106,255,0.3); color: #dde3f0; }",
+  ".btn-green { background: linear-gradient(135deg, #22d98a, #18a86b); color: #07090f; }",
+  ".btn-green:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(34,217,138,0.3); }",
+  ".input { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid #1a2035; border-radius: 10px; padding: 12px 16px; font-family: 'Space Mono', monospace; font-size: 13px; color: #dde3f0; outline: none; transition: all 0.18s; }",
+  ".input:focus { border-color: rgba(124,106,255,0.5); background: rgba(124,106,255,0.04); }",
+  ".input::placeholder { color: #3d4f72; }",
+  "textarea.input { resize: vertical; min-height: 140px; line-height: 1.7; }",
+  "select.input option { background: #0c0f1a; }",
+  ".label { display: block; font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #3d4f72; margin-bottom: 8px; }",
+  ".nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: rgba(7,9,15,0.85); backdrop-filter: blur(16px); border-bottom: 1px solid #1a2035; padding: 0 32px; height: 58px; display: flex; align-items: center; justify-content: space-between; }",
+  ".tag { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }",
+  ".tag-technical { background: rgba(124,106,255,0.15); color: #7c6aff; }",
+  ".tag-hr { background: rgba(245,197,66,0.15); color: #f5c542; }",
+  ".tag-beginner { background: rgba(34,217,138,0.15); color: #22d98a; }",
+  ".tag-intermediate { background: rgba(245,197,66,0.15); color: #f5c542; }",
+  ".tag-advanced { background: rgba(255,79,110,0.15); color: #ff4f6e; }",
+  ".bar-bg { height: 5px; background: #1a2035; border-radius: 99px; overflow: hidden; }",
+  ".bar-fill { height: 100%; border-radius: 99px; transition: width 0.9s cubic-bezier(.22,1,.36,1); }",
+  ".fade-in { animation: fadeUp 0.35s ease forwards; }",
+  "@keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }",
+  ".dot-loader { display: flex; gap: 5px; align-items: center; }",
+  ".dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; animation: blink 1.2s ease-in-out infinite; }",
+  ".dot:nth-child(2) { animation-delay: 0.2s; }",
+  ".dot:nth-child(3) { animation-delay: 0.4s; }",
+  "@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }",
+  ".err { background: rgba(255,79,110,0.1); border: 1px solid rgba(255,79,110,0.25); border-radius: 10px; padding: 12px 16px; color: #ff4f6e; font-size: 12px; }",
+  ".subj-card { background: #0c0f1a; border: 1px solid #1a2035; border-radius: 14px; padding: 20px 16px; cursor: pointer; transition: all 0.18s; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; position: relative; }",
+  ".subj-card:hover { border-color: rgba(124,106,255,0.35); transform: translateY(-2px); }",
+  ".subj-card.selected { border-color: #7c6aff; background: rgba(124,106,255,0.07); box-shadow: 0 0 24px rgba(124,106,255,0.15); }",
+  ".type-tab { padding: 9px 22px; border-radius: 10px; font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; border: 1px solid #1a2035; background: transparent; color: #3d4f72; cursor: pointer; transition: all 0.18s; }",
+  ".type-tab.active { background: rgba(124,106,255,0.12); color: #7c6aff; border-color: rgba(124,106,255,0.35); }",
+].join("\n");
 
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    background: ${theme.bg};
-    color: ${theme.text};
-    font-family: ${theme.font};
-    min-height: 100vh;
-  }
-
-  .page {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .grid-bg {
-    position: fixed;
-    inset: 0;
-    background-image:
-      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
-    background-size: 40px 40px;
-    pointer-events: none;
-    z-index: 0;
-  }
-
-  .glow {
-    position: fixed;
-    width: 600px;
-    height: 600px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(0,229,255,0.06) 0%, transparent 70%);
-    pointer-events: none;
-    z-index: 0;
-  }
-
-  .card {
-    background: ${theme.card};
-    border: 1px solid ${theme.border};
-    border-radius: 12px;
-    position: relative;
-    z-index: 1;
-  }
-
-  .card::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: 12px;
-    background: linear-gradient(135deg, rgba(0,229,255,0.04) 0%, transparent 60%);
-    pointer-events: none;
-  }
-
-  .btn {
-    font-family: ${theme.font};
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s;
-    padding: 12px 24px;
-  }
-
-  .btn-primary {
-    background: ${theme.accent};
-    color: ${theme.bg};
-  }
-
-  .btn-primary:hover {
-    background: #33eaff;
-    box-shadow: 0 0 20px rgba(0,229,255,0.4);
-    transform: translateY(-1px);
-  }
-
-  .btn-secondary {
-    background: transparent;
-    color: ${theme.accent};
-    border: 1px solid ${theme.border};
-  }
-
-  .btn-secondary:hover {
-    border-color: ${theme.accent};
-    background: rgba(0,229,255,0.05);
-  }
-
-  .btn-green {
-    background: ${theme.green};
-    color: ${theme.bg};
-  }
-
-  .btn-green:hover {
-    box-shadow: 0 0 20px rgba(0,255,136,0.4);
-    transform: translateY(-1px);
-  }
-
-  .input {
-    width: 100%;
-    background: rgba(0,0,0,0.3);
-    border: 1px solid ${theme.border};
-    border-radius: 8px;
-    padding: 12px 16px;
-    font-family: ${theme.font};
-    font-size: 13px;
-    color: ${theme.text};
-    outline: none;
-    transition: border-color 0.2s;
-  }
-
-  .input:focus {
-    border-color: ${theme.accent};
-    box-shadow: 0 0 0 3px rgba(0,229,255,0.08);
-  }
-
-  .input::placeholder { color: ${theme.muted}; }
-
-  .label {
-    display: block;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: ${theme.muted};
-    margin-bottom: 8px;
-  }
-
-  .tag {
-    display: inline-block;
-    padding: 3px 10px;
-    border-radius: 4px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-  }
-
-  .tag-technical { background: rgba(0,229,255,0.12); color: ${theme.accent}; }
-  .tag-hr { background: rgba(255,209,102,0.12); color: ${theme.yellow}; }
-  .tag-easy { background: rgba(0,255,136,0.12); color: ${theme.green}; }
-  .tag-medium { background: rgba(255,209,102,0.12); color: ${theme.yellow}; }
-  .tag-hard { background: rgba(255,77,109,0.12); color: ${theme.red}; }
-
-  .score-bar-bg {
-    height: 6px;
-    background: ${theme.border};
-    border-radius: 99px;
-    overflow: hidden;
-  }
-
-  .score-bar-fill {
-    height: 100%;
-    border-radius: 99px;
-    transition: width 1s ease;
-  }
-
-  .title {
-    font-family: ${theme.display};
-    font-weight: 800;
-    letter-spacing: -0.02em;
-  }
-
-  select.input option { background: ${theme.card}; }
-
-  .fade-in {
-    animation: fadeIn 0.4s ease forwards;
-  }
-
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(12px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  .pulse {
-    animation: pulse 2s ease-in-out infinite;
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
-  }
-
-  textarea.input { resize: vertical; min-height: 120px; line-height: 1.6; }
-
-  .nav {
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    z-index: 100;
-    background: rgba(10,14,26,0.9);
-    backdrop-filter: blur(12px);
-    border-bottom: 1px solid ${theme.border};
-    padding: 0 32px;
-    height: 60px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .error-msg {
-    background: rgba(255,77,109,0.1);
-    border: 1px solid rgba(255,77,109,0.3);
-    border-radius: 8px;
-    padding: 12px 16px;
-    color: ${theme.red};
-    font-size: 13px;
-  }
-
-  .success-msg {
-    background: rgba(0,255,136,0.1);
-    border: 1px solid rgba(0,255,136,0.3);
-    border-radius: 8px;
-    padding: 12px 16px;
-    color: ${theme.green};
-    font-size: 13px;
-  }
-`;
-
-// ─── Helpers ───────────────────────────────────────────────────────────────────
-
-function ScoreBar({ value, color }) {
-  const col = value >= 70 ? theme.green : value >= 45 ? theme.yellow : theme.red;
-  return (
-    <div className="score-bar-bg">
-      <div className="score-bar-fill" style={{ width: `${value}%`, background: color || col }} />
-    </div>
-  );
-}
+const authH = (token) => ({ Authorization: "Bearer " + token, "Content-Type": "application/json" });
+const scoreColor = (s) => s >= 70 ? T.green : s >= 45 ? T.yellow : T.red;
 
 function Loader() {
   return (
-    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-      {[0, 1, 2].map(i => (
-        <div key={i} style={{
-          width: 6, height: 6, borderRadius: "50%",
-          background: theme.accent,
-          animation: `pulse 1s ease-in-out ${i * 0.2}s infinite`
-        }} />
-      ))}
+    <div className="dot-loader">
+      <div className="dot" />
+      <div className="dot" />
+      <div className="dot" />
     </div>
   );
 }
 
-// ─── Login Page ────────────────────────────────────────────────────────────────
+function ScoreBar({ value, color }) {
+  const col = scoreColor(value);
+  return (
+    <div className="bar-bg">
+      <div className="bar-fill" style={{ width: value + "%", background: color || col }} />
+    </div>
+  );
+}
 
+// ─── Login ────────────────────────────────────────────────────────────────────
 function LoginPage({ onLogin }) {
-  const [mode, setMode] = useState("login");
-  const [form, setForm] = useState({ name: "", email: "", password: "", branch: "CSE", year: 2 });
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const handle = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
+  const [mode, setMode]    = useState("login");
+  const [email, setEmail]  = useState("suraj@test.com");
+  const [pass, setPass]    = useState("test123");
+  const [name, setName]    = useState("");
+  const [err, setErr]      = useState("");
+  const [loading, setLoad] = useState(false);
 
   async function submit() {
-    setError(""); setLoading(true);
+    setErr(""); setLoad(true);
     try {
       if (mode === "register") {
-        const r = await fetch(`${API}/auth/register`, {
+        const r = await fetch(API + "/auth/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...form, year: Number(form.year) })
+          body: JSON.stringify({ name, email, password: pass }),
         });
         const d = await r.json();
-        if (!r.ok) { setError(d.detail || "Registration failed"); setLoading(false); return; }
-        setMode("login"); setError(""); 
+        if (!r.ok) { setErr(d.detail || "Registration failed"); setLoad(false); return; }
+        setMode("login"); setLoad(false); return;
       }
-      const r = await fetch(`${API}/auth/login`, {
+      const r = await fetch(API + "/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: form.email, password: form.password })
+        body: JSON.stringify({ email, password: pass }),
       });
       const d = await r.json();
-      if (!r.ok) { setError(d.detail || "Login failed"); setLoading(false); return; }
-      localStorage.setItem("token", d.access_token);
-      localStorage.setItem("user", JSON.stringify(d.user));
-      onLogin(d.access_token, d.user);
-    } catch {
-      setError("Cannot connect to server. Is uvicorn running?");
+      if (!r.ok) { setErr(d.detail || "Login failed"); setLoad(false); return; }
+      localStorage.setItem("sim_token", d.access_token);
+      onLogin(d.access_token, { email, name: d.user?.name || email.split("@")[0] });
+    } catch (e) {
+      setErr("Cannot connect — is the server running?");
+    }
+    setLoad(false);
+  }
+
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div className="grid-bg" />
+      <div className="glow-purple" />
+      <div className="glow-blue" />
+      <div className="card card-glow fade-in" style={{ width: "100%", maxWidth: 420, padding: "44px 36px" }}>
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div style={{ fontSize: 36, marginBottom: 10, color: T.accent }}>◈</div>
+          <h1 style={{ fontFamily: T.display, fontSize: 28, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em" }}>
+            Interview Simulator
+          </h1>
+          <p style={{ fontSize: 13, color: T.muted, marginTop: 6 }}>AI-powered placement prep</p>
+        </div>
+
+        <div style={{ display: "flex", background: "rgba(0,0,0,0.3)", borderRadius: 10, padding: 4, marginBottom: 24, gap: 4 }}>
+          {["login", "register"].map(m => (
+            <button key={m} onClick={() => { setMode(m); setErr(""); }} style={{
+              flex: 1, padding: "8px", fontFamily: T.font, fontSize: 11, fontWeight: 700,
+              letterSpacing: "0.08em", textTransform: "uppercase", border: "none",
+              borderRadius: 7, cursor: "pointer", transition: "all 0.18s",
+              background: mode === m ? T.accent : "transparent",
+              color: mode === m ? "#fff" : T.muted,
+            }}>
+              {m === "login" ? "Sign In" : "Register"}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {mode === "register" && (
+            <div>
+              <label className="label">Full Name</label>
+              <input className="input" placeholder="Suraj Kumar" value={name} onChange={e => setName(e.target.value)} />
+            </div>
+          )}
+          <div>
+            <label className="label">Email</label>
+            <input className="input" type="email" placeholder="you@email.com" value={email} onChange={e => setEmail(e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Password</label>
+            <input className="input" type="password" placeholder="••••••••"
+              value={pass} onChange={e => setPass(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && submit()} />
+          </div>
+          {err && <div className="err">{err}</div>}
+          <button className="btn btn-primary" onClick={submit} disabled={loading}
+            style={{ width: "100%", padding: 14, marginTop: 4 }}>
+            {loading ? <Loader /> : mode === "login" ? "Sign In" : "Create Account"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+function DashboardPage({ token, user, onStart, onLogout, onAnalytics }) {
+  const [subjects, setSubjects] = useState([]);
+  const [tab, setTab]           = useState("technical");
+  const [selected, setSelected] = useState(null);
+  const [difficulty, setDiff]   = useState("beginner");
+  const [loading, setLoading]   = useState(true);
+  const [starting, setStarting] = useState(false);
+  const [err, setErr]           = useState("");
+
+  const ICONS = {
+    "DSA": "🌳", "OOPS": "🔷", "System Design": "🏗️",
+    "DBMS": "🗄️", "OS & Networking": "💻", "Machine Learning": "🤖", "Behavioral": "🤝",
+  };
+
+  useEffect(() => {
+    fetch(API + "/interview/subjects", { headers: authH(token) })
+      .then(r => r.json())
+      .then(d => { setSubjects(Array.isArray(d) ? d : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const filtered = subjects.filter(s => (s.type || "technical") === tab);
+
+  async function start() {
+    if (!selected) return;
+    setErr(""); setStarting(true);
+    try {
+      const r = await fetch(API + "/interview/start", {
+        method: "POST", headers: authH(token),
+        body: JSON.stringify({ subject_id: selected.id, difficulty, interview_type: selected.type || "technical" }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setErr(d.detail || "Failed to start"); setStarting(false); return; }
+      onStart(d.session_id, selected, difficulty);
+    } catch (e) {
+      setErr("Server error");
+    }
+    setStarting(false);
+  }
+
+  return (
+    <div style={{ minHeight: "100vh", background: T.bg, paddingTop: 58 }}>
+      <div className="grid-bg" />
+      <div className="glow-purple" />
+
+      <nav className="nav">
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ color: T.accent, fontSize: 18 }}>◈</span>
+          <span style={{ fontFamily: T.display, fontSize: 17, fontWeight: 700, color: "#fff" }}>Interview Simulator</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 12, color: T.muted }}>{user?.name || user?.email}</span>
+          <button className="btn btn-ghost" onClick={onAnalytics} style={{ padding: "6px 14px" }}>Analytics</button>
+          <button className="btn btn-ghost" onClick={onLogout}
+            style={{ padding: "6px 14px", color: T.red, borderColor: "rgba(255,79,110,0.3)" }}>
+            Logout
+          </button>
+        </div>
+      </nav>
+
+      <div style={{ maxWidth: 960, margin: "0 auto", padding: "40px 24px", position: "relative", zIndex: 1 }}>
+        <div className="fade-in" style={{ marginBottom: 36 }}>
+          <p style={{ fontSize: 11, color: T.accent, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 6 }}>
+            Ready to practice
+          </p>
+          <h1 style={{ fontFamily: T.display, fontSize: 34, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em" }}>
+            Choose Your Interview
+          </h1>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginBottom: 28 }}>
+          <button className={"type-tab" + (tab === "technical" ? " active" : "")}
+            onClick={() => { setTab("technical"); setSelected(null); }}>
+            Technical
+          </button>
+          <button className={"type-tab" + (tab === "hr" ? " active" : "")}
+            onClick={() => { setTab("hr"); setSelected(null); }}>
+            HR / Behavioral
+          </button>
+        </div>
+
+        {loading ? (
+          <div style={{ display: "flex", justifyContent: "center", padding: 60 }}><Loader /></div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12, marginBottom: 100 }}>
+            {filtered.map(s => (
+              <div key={s.id}
+                className={"subj-card" + (selected?.id === s.id ? " selected" : "")}
+                onClick={() => setSelected(s)}>
+                <span style={{ fontSize: 30 }}>{ICONS[s.name] || "📘"}</span>
+                <span style={{ fontFamily: T.display, fontSize: 13, fontWeight: 600, color: T.text }}>{s.name}</span>
+                <span style={{ fontSize: 10, color: T.muted }}>{s.question_count} questions</span>
+                {selected?.id === s.id && (
+                  <span style={{ position: "absolute", top: 10, right: 12, color: T.accent, fontWeight: 700, fontSize: 13 }}>✓</span>
+                )}
+              </div>
+            ))}
+            {filtered.length === 0 && <p style={{ color: T.muted, fontSize: 13 }}>No subjects found.</p>}
+          </div>
+        )}
+      </div>
+
+      {selected && (
+        <div style={{
+          position: "fixed", bottom: 0, left: 0, right: 0,
+          background: "rgba(7,9,15,0.95)", backdropFilter: "blur(16px)",
+          borderTop: "1px solid #1a2035", padding: "18px 32px", zIndex: 50,
+        }}>
+          <div style={{ maxWidth: 960, margin: "0 auto", display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
+            <div>
+              <span style={{ fontSize: 11, color: T.muted }}>Subject: </span>
+              <span style={{ fontSize: 13, color: T.accent, fontWeight: 700 }}>{selected.name}</span>
+            </div>
+            <div style={{ display: "flex", gap: 8, flex: 1 }}>
+              {["beginner", "intermediate", "advanced"].map(d => (
+                <button key={d} onClick={() => setDiff(d)} style={{
+                  fontFamily: T.font, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em",
+                  textTransform: "uppercase", padding: "8px 16px", borderRadius: 8, cursor: "pointer",
+                  border: "1px solid " + (difficulty === d ? T.accent : T.border),
+                  background: difficulty === d ? "rgba(124,106,255,0.15)" : "transparent",
+                  color: difficulty === d ? T.accent : T.muted, transition: "all 0.18s",
+                }}>{d}</button>
+              ))}
+            </div>
+            {err && <span style={{ fontSize: 12, color: T.red }}>{err}</span>}
+            <button className="btn btn-primary" onClick={start} disabled={starting} style={{ padding: "12px 32px" }}>
+              {starting ? <Loader /> : "Start Interview"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Interview Page ───────────────────────────────────────────────────────────
+function InterviewPage({ token, sessionId, subject, difficulty, onDone, onBack }) {
+  const [question, setQuestion] = useState(null);
+  const [answer, setAnswer]     = useState("");
+  const [result, setResult]     = useState(null);
+  const [loading, setLoading]   = useState(true);
+  const [submitting, setSub]    = useState(false);
+  const [err, setErr]           = useState("");
+  const [qNum, setQNum]         = useState(1);
+
+  useEffect(() => { fetchQ(); }, []);
+
+  async function fetchQ() {
+    setLoading(true); setResult(null); setAnswer(""); setErr("");
+    try {
+      const r = await fetch(
+        API + "/interview/question?subject_id=" + subject.id + "&difficulty=" + difficulty,
+        { headers: authH(token) }
+      );
+      const d = await r.json();
+      if (!r.ok) { setErr(d.detail || "Could not load question"); setLoading(false); return; }
+      setQuestion(d);
+    } catch (e) {
+      setErr("Server error");
     }
     setLoading(false);
   }
 
-  return (
-    <div className="page">
-      <div className="grid-bg" />
-      <div className="glow" style={{ top: "-200px", left: "50%", transform: "translateX(-50%)" }} />
-
-      <div className="card fade-in" style={{ width: "100%", maxWidth: 440, padding: 40 }}>
-        {/* Logo */}
-        <div style={{ marginBottom: 32, textAlign: "center" }}>
-          <div style={{ fontSize: 11, letterSpacing: "0.2em", color: theme.muted, textTransform: "uppercase", marginBottom: 8 }}>
-            ◈ Interview Simulator
-          </div>
-          <h1 className="title" style={{ fontSize: 32, color: "#fff" }}>
-            Crack the <span style={{ color: theme.accent }}>Interview</span>
-          </h1>
-          <p style={{ fontSize: 13, color: theme.muted, marginTop: 8 }}>
-            AI-powered mock interviews with real scoring
-          </p>
-        </div>
-
-        {/* Tabs */}
-        <div style={{ display: "flex", gap: 4, background: "rgba(0,0,0,0.3)", borderRadius: 8, padding: 4, marginBottom: 28 }}>
-          {["login", "register"].map(m => (
-            <button key={m} className="btn" onClick={() => setMode(m)} style={{
-              flex: 1, padding: "8px 0", fontSize: 12,
-              background: mode === m ? theme.accent : "transparent",
-              color: mode === m ? theme.bg : theme.muted,
-              borderRadius: 6,
-            }}>{m === "login" ? "Sign In" : "Register"}</button>
-          ))}
-        </div>
-
-        {/* Fields */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {mode === "register" && (
-            <>
-              <div>
-                <label className="label">Full Name</label>
-                <input className="input" name="name" placeholder="Suraj Kumar" value={form.name} onChange={handle} />
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div>
-                  <label className="label">Branch</label>
-                  <input className="input" name="branch" placeholder="CSE" value={form.branch} onChange={handle} />
-                </div>
-                <div>
-                  <label className="label">Year</label>
-                  <select className="input" name="year" value={form.year} onChange={handle}>
-                    {[1,2,3,4].map(y => <option key={y} value={y}>Year {y}</option>)}
-                  </select>
-                </div>
-              </div>
-            </>
-          )}
-          <div>
-            <label className="label">Email</label>
-            <input className="input" name="email" type="email" placeholder="suraj@test.com" value={form.email} onChange={handle} />
-          </div>
-          <div>
-            <label className="label">Password</label>
-            <input className="input" name="password" type="password" placeholder="••••••••" value={form.password} onChange={handle}
-              onKeyDown={e => e.key === "Enter" && submit()} />
-          </div>
-
-          {error && <div className="error-msg">{error}</div>}
-
-          <button className="btn btn-primary" onClick={submit} disabled={loading}
-            style={{ width: "100%", marginTop: 4, padding: "14px", fontSize: 13 }}>
-            {loading ? <Loader /> : mode === "login" ? "→ Sign In" : "→ Create Account"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Dashboard Page ────────────────────────────────────────────────────────────
-
-function DashboardPage({ token, user, onStart, onLogout }) {
-  const [analytics, setAnalytics] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ interview_type: "technical", topic: "arrays", difficulty: "medium" });
-  const [starting, setStarting] = useState(false);
-  const [error, setError] = useState("");
-
-  const topics = {
-    technical: ["arrays", "linked_list", "trees", "sorting", "dp", "oops", "system_design"],
-    hr: ["behavioral"]
-  };
-
-  useEffect(() => {
-    fetch(`${API}/analytics/me`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json()).then(d => { setAnalytics(d); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, []);
-
-  async function startInterview() {
-    setError(""); setStarting(true);
+  async function submit() {
+    if (!answer.trim()) { setErr("Please write an answer first."); return; }
+    setErr(""); setSub(true);
     try {
-      const r = await fetch(`${API}/interview/start`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(form)
+      const r = await fetch(API + "/interview/answer", {
+        method: "POST", headers: authH(token),
+        body: JSON.stringify({ session_id: sessionId, question_id: question.question_id, user_answer: answer }),
       });
       const d = await r.json();
-      if (!r.ok) { setError(d.detail || "Failed to start"); setStarting(false); return; }
-      onStart(d.session_id, form.topic, form.difficulty, form.interview_type);
-    } catch { setError("Server error"); }
-    setStarting(false);
-  }
-
-  const perf = analytics?.avg_nlp_score;
-  const perfColor = perf >= 70 ? theme.green : perf >= 45 ? theme.yellow : theme.red;
-
-  return (
-    <div style={{ minHeight: "100vh", background: theme.bg, paddingTop: 60 }}>
-      <div className="grid-bg" />
-
-      {/* Nav */}
-      <nav className="nav">
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ color: theme.accent, fontSize: 16 }}>◈</span>
-          <span className="title" style={{ fontSize: 18, color: "#fff" }}>Interview Simulator</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <span style={{ fontSize: 12, color: theme.muted }}>
-            {user?.name} · {user?.branch} Y{user?.year}
-          </span>
-          <button className="btn btn-secondary" onClick={onLogout} style={{ padding: "6px 14px", fontSize: 11 }}>
-            Sign Out
-          </button>
-        </div>
-      </nav>
-
-      <div style={{ maxWidth: 1000, margin: "0 auto", padding: "40px 24px", position: "relative", zIndex: 1 }}>
-
-        {/* Header */}
-        <div className="fade-in" style={{ marginBottom: 36 }}>
-          <p style={{ fontSize: 12, color: theme.accent, letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 6 }}>
-            Welcome back
-          </p>
-          <h1 className="title" style={{ fontSize: 36, color: "#fff" }}>
-            Ready to practice, <span style={{ color: theme.accent }}>{user?.name?.split(" ")[0]}?</span>
-          </h1>
-        </div>
-
-        {/* Stats Row */}
-        <div className="fade-in" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, marginBottom: 32 }}>
-          {[
-            { label: "Sessions", value: analytics?.total_sessions ?? "—", color: theme.accent },
-            { label: "Answers", value: analytics?.total_answers ?? "—", color: theme.yellow },
-            { label: "Avg Score", value: analytics?.avg_nlp_score ? `${analytics.avg_nlp_score}%` : "—", color: perfColor },
-            { label: "Best Topic", value: analytics?.strongest_topic ?? "—", color: theme.green },
-          ].map(s => (
-            <div key={s.label} className="card" style={{ padding: "20px 24px" }}>
-              <div style={{ fontSize: 11, color: theme.muted, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>{s.label}</div>
-              <div className="title" style={{ fontSize: 26, color: s.color }}>{loading ? "…" : s.value}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Two Columns */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-
-          {/* Start Interview */}
-          <div className="card fade-in" style={{ padding: 28 }}>
-            <h2 className="title" style={{ fontSize: 20, color: "#fff", marginBottom: 20 }}>
-              Start Interview
-            </h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <div>
-                <label className="label">Type</label>
-                <select className="input" value={form.interview_type}
-                  onChange={e => setForm(f => ({ ...f, interview_type: e.target.value, topic: topics[e.target.value][0] }))}>
-                  <option value="technical">Technical</option>
-                  <option value="hr">HR / Behavioral</option>
-                </select>
-              </div>
-              <div>
-                <label className="label">Topic</label>
-                <select className="input" value={form.topic}
-                  onChange={e => setForm(f => ({ ...f, topic: e.target.value }))}>
-                  {topics[form.interview_type].map(t => (
-                    <option key={t} value={t}>{t.replace("_", " ").toUpperCase()}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="label">Difficulty</label>
-                <div style={{ display: "flex", gap: 8 }}>
-                  {["easy", "medium", "hard"].map(d => (
-                    <button key={d} className="btn" onClick={() => setForm(f => ({ ...f, difficulty: d }))} style={{
-                      flex: 1, padding: "10px 0", fontSize: 11,
-                      background: form.difficulty === d
-                        ? d === "easy" ? theme.green : d === "medium" ? theme.yellow : theme.red
-                        : "transparent",
-                      color: form.difficulty === d ? theme.bg : theme.muted,
-                      border: `1px solid ${form.difficulty === d ? "transparent" : theme.border}`,
-                      borderRadius: 6,
-                    }}>{d}</button>
-                  ))}
-                </div>
-              </div>
-
-              {error && <div className="error-msg">{error}</div>}
-
-              <button className="btn btn-primary" onClick={startInterview} disabled={starting}
-                style={{ width: "100%", padding: "14px", marginTop: 4 }}>
-                {starting ? <Loader /> : "→ Start Interview"}
-              </button>
-            </div>
-          </div>
-
-          {/* Topic Breakdown */}
-          <div className="card fade-in" style={{ padding: 28 }}>
-            <h2 className="title" style={{ fontSize: 20, color: "#fff", marginBottom: 20 }}>
-              Topic Performance
-            </h2>
-            {loading ? (
-              <div style={{ display: "flex", justifyContent: "center", padding: 40 }}><Loader /></div>
-            ) : analytics?.topic_breakdown && Object.keys(analytics.topic_breakdown).length > 0 ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                {Object.entries(analytics.topic_breakdown).map(([topic, score]) => (
-                  <div key={topic}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                      <span style={{ fontSize: 12, color: theme.text }}>{topic.replace("_", " ")}</span>
-                      <span style={{ fontSize: 12, color: score >= 70 ? theme.green : score >= 45 ? theme.yellow : theme.red, fontWeight: 600 }}>
-                        {score}%
-                      </span>
-                    </div>
-                    <ScoreBar value={score} />
-                  </div>
-                ))}
-                <div style={{ marginTop: 8, padding: "12px 16px", background: "rgba(0,0,0,0.3)", borderRadius: 8 }}>
-                  <span style={{ fontSize: 12, color: theme.muted }}>Weakest: </span>
-                  <span style={{ fontSize: 12, color: theme.red }}>{analytics.weakest_topic}</span>
-                  <span style={{ fontSize: 12, color: theme.muted }}> · Strongest: </span>
-                  <span style={{ fontSize: 12, color: theme.green }}>{analytics.strongest_topic}</span>
-                </div>
-              </div>
-            ) : (
-              <div style={{ textAlign: "center", padding: "40px 0", color: theme.muted }}>
-                <div style={{ fontSize: 32, marginBottom: 12 }}>📊</div>
-                <p style={{ fontSize: 13 }}>No data yet — complete your first interview!</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Interview Room Page ────────────────────────────────────────────────────────
-
-function InterviewRoomPage({ token, sessionId, topic, difficulty, interviewType, onResult, onBack }) {
-  const [question, setQuestion] = useState(null);
-  const [answer, setAnswer] = useState("");
-  const [result, setResult] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
-  const [questionNum, setQuestionNum] = useState(1);
-
-  useEffect(() => { fetchQuestion(); }, []);
-
-  async function fetchQuestion() {
-    setLoading(true); setResult(null); setAnswer(""); setError("");
-    try {
-      const r = await fetch(`${API}/interview/question?topic=${topic}&difficulty=${difficulty}`,
-        { headers: { Authorization: `Bearer ${token}` } });
-      const d = await r.json();
-      if (!r.ok) { setError(d.detail || "Failed to fetch question"); setLoading(false); return; }
-      setQuestion(d);
-    } catch { setError("Server error"); }
-    setLoading(false);
-  }
-
-  async function submitAnswer() {
-    if (!answer.trim()) { setError("Please write an answer first."); return; }
-    setError(""); setSubmitting(true);
-    try {
-      const r = await fetch(`${API}/interview/answer`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ session_id: sessionId, question_id: question.question_id, user_answer: answer })
-      });
-      const d = await r.json();
-      if (!r.ok) { setError(d.detail || "Submission failed"); setSubmitting(false); return; }
+      if (!r.ok) { setErr(d.detail || "Submission failed"); setSub(false); return; }
       setResult(d);
-    } catch { setError("Server error"); }
-    setSubmitting(false);
+    } catch (e) {
+      setErr("Server error");
+    }
+    setSub(false);
   }
 
-  function nextQuestion() {
-    setQuestionNum(n => n + 1);
-    fetchQuestion();
-  }
+  function next() { setQNum(n => n + 1); fetchQ(); }
 
-  const scoreColor = result ? (result.nlp_score >= 70 ? theme.green : result.nlp_score >= 45 ? theme.yellow : theme.red) : theme.accent;
+  const sc = scoreColor(result?.nlp_score || 0);
 
   return (
-    <div style={{ minHeight: "100vh", background: theme.bg, paddingTop: 60 }}>
+    <div style={{ minHeight: "100vh", background: T.bg, paddingTop: 58 }}>
       <div className="grid-bg" />
+      <div className="glow-purple" />
 
       <nav className="nav">
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <button className="btn btn-secondary" onClick={onBack} style={{ padding: "6px 14px", fontSize: 11 }}>← Dashboard</button>
-          <span style={{ fontSize: 12, color: theme.muted }}>
-            Session #{sessionId} · Q{questionNum}
-          </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <button className="btn btn-ghost" onClick={onBack} style={{ padding: "6px 14px", fontSize: 11 }}>Back</button>
+          <span style={{ fontSize: 12, color: T.muted }}>Question {qNum}</span>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <span className={`tag tag-${interviewType}`}>{interviewType}</span>
-          <span className={`tag tag-${difficulty}`}>{difficulty}</span>
-          <span className="tag" style={{ background: "rgba(0,229,255,0.08)", color: theme.accent }}>
-            {topic.replace("_", " ")}
-          </span>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <span className={"tag tag-" + (subject.type || "technical")}>{subject.name}</span>
+          <span className={"tag tag-" + difficulty}>{difficulty}</span>
         </div>
       </nav>
 
-      <div style={{ maxWidth: 800, margin: "0 auto", padding: "40px 24px", position: "relative", zIndex: 1 }}>
-
-        {/* Question Card */}
+      <div style={{ maxWidth: 780, margin: "0 auto", padding: "40px 24px", position: "relative", zIndex: 1 }}>
         <div className="card fade-in" style={{ padding: 32, marginBottom: 20 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-            <span style={{ fontSize: 11, color: theme.muted, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-              Question {questionNum}
+            <span style={{ fontSize: 11, color: T.muted, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+              Q{qNum} · {question?.topic_name || subject.name}
             </span>
-            {question && <span className={`tag tag-${question.type}`}>{question.type}</span>}
+            {question && <span className={"tag tag-" + question.difficulty}>{question.difficulty}</span>}
           </div>
-
           {loading ? (
             <div style={{ display: "flex", justifyContent: "center", padding: 32 }}><Loader /></div>
           ) : question ? (
-            <p style={{ fontSize: 18, color: "#fff", lineHeight: 1.6, fontFamily: theme.display, fontWeight: 600 }}>
+            <p style={{ fontFamily: T.display, fontSize: 20, fontWeight: 600, color: "#fff", lineHeight: 1.55 }}>
               {question.question_text}
             </p>
           ) : (
-            <div className="error-msg">Could not load question. Try a different topic/difficulty.</div>
+            <div className="err">Could not load question.</div>
           )}
         </div>
 
-        {/* Answer Box */}
         {question && !result && (
           <div className="card fade-in" style={{ padding: 28, marginBottom: 20 }}>
-            <label className="label" style={{ marginBottom: 12 }}>Your Answer</label>
-            <textarea
-              className="input"
-              value={answer}
-              onChange={e => setAnswer(e.target.value)}
-              placeholder="Type your answer here... Be thorough — explain concepts, give examples, mention time/space complexity where relevant."
-              style={{ minHeight: 160 }}
-            />
-            {error && <div className="error-msg" style={{ marginTop: 12 }}>{error}</div>}
-            <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
-              <button className="btn btn-primary" onClick={submitAnswer} disabled={submitting}
-                style={{ flex: 1, padding: "13px" }}>
-                {submitting ? <Loader /> : "→ Submit Answer"}
+            <label className="label">Your Answer</label>
+            <textarea className="input" value={answer} onChange={e => setAnswer(e.target.value)}
+              placeholder="Write a thorough answer — explain the concept, give examples, mention complexity where relevant..."
+              style={{ minHeight: 160 }} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6, marginBottom: 16 }}>
+              {err ? <div className="err">{err}</div> : <span />}
+              <span style={{ fontSize: 11, color: T.muted }}>
+                {answer.trim().split(/\s+/).filter(Boolean).length} words
+              </span>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button className="btn btn-primary" onClick={submit} disabled={submitting || !answer.trim()}
+                style={{ flex: 1, padding: 13 }}>
+                {submitting ? <Loader /> : "Submit Answer"}
               </button>
-              <button className="btn btn-secondary" onClick={onBack} style={{ padding: "13px 20px" }}>
-                End Session
-              </button>
+              <button className="btn btn-ghost" onClick={onBack} style={{ padding: "13px 18px" }}>End</button>
             </div>
           </div>
         )}
 
-        {/* Result Card */}
         {result && (
-          <div className="card fade-in" style={{ padding: 28 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-              <h2 className="title" style={{ fontSize: 22, color: "#fff" }}>Score Breakdown</h2>
-              <div className="title" style={{ fontSize: 36, color: scoreColor }}>{result.nlp_score}%</div>
+          <div className="card fade-in" style={{ padding: 32 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 28 }}>
+              <h2 style={{ fontFamily: T.display, fontSize: 22, fontWeight: 700, color: "#fff" }}>Score Breakdown</h2>
+              <span style={{ fontFamily: T.display, fontSize: 38, fontWeight: 800, color: sc }}>{result.nlp_score}%</span>
             </div>
-
-            {/* Score bars */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 24 }}>
-              {[
-                { label: "Semantic Understanding", value: result.semantic_score, color: theme.accent },
-                { label: "Keyword Coverage", value: result.keyword_score, color: theme.yellow },
-                { label: "Answer Structure", value: result.structure_score, color: theme.green },
-              ].map(s => (
-                <div key={s.label}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                    <span style={{ fontSize: 12, color: theme.text }}>{s.label}</span>
-                    <span style={{ fontSize: 12, color: s.color, fontWeight: 600 }}>{s.value}%</span>
-                  </div>
-                  <ScoreBar value={s.value} color={s.color} />
+            {[
+              { label: "Semantic Understanding", value: result.semantic_score, color: T.accent },
+              { label: "Keyword Coverage",        value: result.keyword_score,  color: T.yellow },
+              { label: "Answer Structure",         value: result.structure_score, color: T.green },
+            ].map(s => (
+              <div key={s.label} style={{ marginBottom: 18 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 7 }}>
+                  <span style={{ fontSize: 12, color: T.text }}>{s.label}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: s.color }}>{s.value}%</span>
                 </div>
-              ))}
+                <ScoreBar value={s.value} color={s.color} />
+              </div>
+            ))}
+            <div style={{ background: "rgba(0,0,0,0.25)", borderRadius: 10, padding: "14px 16px", margin: "20px 0", borderLeft: "3px solid " + sc }}>
+              <p style={{ fontSize: 13, color: T.text, lineHeight: 1.6 }}>💡 {result.feedback}</p>
             </div>
-
-            {/* Feedback */}
-            <div style={{ background: "rgba(0,0,0,0.3)", borderRadius: 8, padding: "14px 16px", marginBottom: 20, borderLeft: `3px solid ${scoreColor}` }}>
-              <p style={{ fontSize: 13, color: theme.text, lineHeight: 1.6 }}>💡 {result.feedback}</p>
-            </div>
-
-            <div style={{ display: "flex", gap: 12 }}>
-              <button className="btn btn-green" onClick={nextQuestion} style={{ flex: 1, padding: "13px" }}>
-                → Next Question
-              </button>
-              <button className="btn btn-secondary" onClick={() => onResult(result)} style={{ padding: "13px 20px" }}>
-                View Summary
-              </button>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button className="btn btn-green" onClick={next} style={{ flex: 1, padding: 13 }}>Next Question</button>
+              <button className="btn btn-ghost" onClick={() => onDone(result)} style={{ padding: "13px 18px" }}>Summary</button>
             </div>
           </div>
         )}
@@ -716,98 +454,92 @@ function InterviewRoomPage({ token, sessionId, topic, difficulty, interviewType,
   );
 }
 
-// ─── Result Page ───────────────────────────────────────────────────────────────
-
-function ResultPage({ token, onBack }) {
-  const [analytics, setAnalytics] = useState(null);
-  const [loading, setLoading] = useState(true);
+// ─── Analytics ────────────────────────────────────────────────────────────────
+function AnalyticsPage({ token, onBack }) {
+  const [data, setData]    = useState(null);
+  const [loading, setLoad] = useState(true);
 
   useEffect(() => {
-    fetch(`${API}/analytics/me`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json()).then(d => { setAnalytics(d); setLoading(false); });
+    fetch(API + "/analytics/me", { headers: authH(token) })
+      .then(r => r.json())
+      .then(d => { setData(d); setLoad(false); })
+      .catch(() => setLoad(false));
   }, []);
 
-  const score = analytics?.avg_nlp_score;
-  const scoreColor = score >= 70 ? theme.green : score >= 45 ? theme.yellow : theme.red;
+  const score = data?.avg_nlp_score;
+  const sc    = scoreColor(score || 0);
 
   return (
-    <div style={{ minHeight: "100vh", background: theme.bg, paddingTop: 60 }}>
+    <div style={{ minHeight: "100vh", background: T.bg, paddingTop: 58 }}>
       <div className="grid-bg" />
-      <div className="glow" style={{ top: "0", left: "50%", transform: "translateX(-50%)" }} />
+      <div className="glow-purple" />
 
       <nav className="nav">
-        <button className="btn btn-secondary" onClick={onBack} style={{ padding: "6px 14px", fontSize: 11 }}>
-          ← Back to Dashboard
-        </button>
-        <span style={{ fontSize: 12, color: theme.muted }}>Session Summary</span>
+        <button className="btn btn-ghost" onClick={onBack} style={{ padding: "6px 14px", fontSize: 11 }}>Back</button>
+        <span style={{ fontFamily: T.display, fontSize: 16, fontWeight: 700, color: "#fff" }}>Analytics</span>
+        <div />
       </nav>
 
-      <div style={{ maxWidth: 700, margin: "0 auto", padding: "40px 24px", position: "relative", zIndex: 1 }}>
+      <div style={{ maxWidth: 760, margin: "0 auto", padding: "40px 24px", position: "relative", zIndex: 1 }}>
         {loading ? (
           <div style={{ display: "flex", justifyContent: "center", padding: 80 }}><Loader /></div>
+        ) : !data ? (
+          <div className="err">Could not load analytics.</div>
         ) : (
           <>
-            {/* Big Score */}
-            <div className="card fade-in" style={{ padding: 40, textAlign: "center", marginBottom: 20 }}>
-              <p style={{ fontSize: 11, color: theme.muted, letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 12 }}>
+            <div className="card card-glow fade-in" style={{ padding: 40, textAlign: "center", marginBottom: 20 }}>
+              <p style={{ fontSize: 11, color: T.muted, letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 16 }}>
                 Overall Performance
               </p>
-              <div className="title" style={{ fontSize: 72, color: scoreColor, lineHeight: 1 }}>
-                {score ?? "—"}%
+              <div style={{ fontFamily: T.display, fontSize: 76, fontWeight: 800, color: sc, lineHeight: 1 }}>
+                {score != null ? score + "%" : "—"}
               </div>
-              <p style={{ fontSize: 16, color: theme.text, marginTop: 12, fontFamily: theme.display }}>
-                {analytics?.performance}
+              <p style={{ fontFamily: T.display, fontSize: 16, color: T.text, marginTop: 10 }}>
+                {data.performance || "Keep practicing!"}
               </p>
-              <div style={{ display: "flex", justifyContent: "center", gap: 24, marginTop: 24 }}>
-                <div style={{ textAlign: "center" }}>
-                  <div className="title" style={{ fontSize: 28, color: theme.accent }}>{analytics?.total_sessions}</div>
-                  <div style={{ fontSize: 11, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.1em" }}>Sessions</div>
-                </div>
-                <div style={{ width: 1, background: theme.border }} />
-                <div style={{ textAlign: "center" }}>
-                  <div className="title" style={{ fontSize: 28, color: theme.yellow }}>{analytics?.total_answers}</div>
-                  <div style={{ fontSize: 11, color: theme.muted, textTransform: "uppercase", letterSpacing: "0.1em" }}>Answers</div>
-                </div>
+              <div style={{ display: "flex", justifyContent: "center", gap: 40, marginTop: 28 }}>
+                {[
+                  { label: "Sessions", value: data.total_sessions, color: T.accent },
+                  { label: "Answers",  value: data.total_answers,  color: T.yellow },
+                ].map(s => (
+                  <div key={s.label} style={{ textAlign: "center" }}>
+                    <div style={{ fontFamily: T.display, fontSize: 32, fontWeight: 800, color: s.color }}>{s.value ?? "—"}</div>
+                    <div style={{ fontSize: 11, color: T.muted, textTransform: "uppercase", letterSpacing: "0.1em", marginTop: 4 }}>{s.label}</div>
+                  </div>
+                ))}
               </div>
             </div>
 
-            {/* Topic Breakdown */}
-            {analytics?.topic_breakdown && Object.keys(analytics.topic_breakdown).length > 0 && (
+            {data.topic_breakdown && Object.keys(data.topic_breakdown).length > 0 && (
               <div className="card fade-in" style={{ padding: 28, marginBottom: 20 }}>
-                <h2 className="title" style={{ fontSize: 20, color: "#fff", marginBottom: 20 }}>Topic Breakdown</h2>
-                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                  {Object.entries(analytics.topic_breakdown)
-                    .sort(([,a],[,b]) => b - a)
-                    .map(([topic, score]) => (
-                    <div key={topic}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                        <span style={{ fontSize: 13, color: theme.text }}>{topic.replace("_", " ").toUpperCase()}</span>
-                        <span style={{ fontSize: 13, fontWeight: 600,
-                          color: score >= 70 ? theme.green : score >= 45 ? theme.yellow : theme.red }}>
-                          {score}%
-                        </span>
-                      </div>
-                      <ScoreBar value={score} />
+                <h2 style={{ fontFamily: T.display, fontSize: 18, fontWeight: 700, color: "#fff", marginBottom: 22 }}>
+                  Topic Breakdown
+                </h2>
+                {Object.entries(data.topic_breakdown).sort(([, a], [, b]) => b - a).map(([topic, s]) => (
+                  <div key={topic} style={{ marginBottom: 18 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 7 }}>
+                      <span style={{ fontSize: 12, color: T.text }}>{topic.replace(/_/g, " ")}</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: scoreColor(s) }}>{s}%</span>
                     </div>
-                  ))}
-                </div>
+                    <ScoreBar value={s} />
+                  </div>
+                ))}
               </div>
             )}
 
-            {/* Advice */}
-            <div className="card fade-in" style={{ padding: 24, borderLeft: `3px solid ${theme.accent}` }}>
-              <p style={{ fontSize: 13, color: theme.muted, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                Focus Area
-              </p>
-              <p style={{ fontSize: 15, color: theme.text, lineHeight: 1.6 }}>
-                Practice more on <span style={{ color: theme.red }}>{analytics?.weakest_topic?.replace("_", " ")}</span>.
-                Your strongest area is <span style={{ color: theme.green }}>{analytics?.strongest_topic?.replace("_", " ")}</span> — keep it up!
-              </p>
-            </div>
+            {(data.weakest_topic || data.strongest_topic) && (
+              <div className="card fade-in" style={{ padding: 22, borderLeft: "3px solid " + T.accent }}>
+                <p style={{ fontSize: 13, color: T.text, lineHeight: 1.6 }}>
+                  Focus on{" "}
+                  <span style={{ color: T.red, fontWeight: 700 }}>{data.weakest_topic?.replace(/_/g, " ")}</span>.
+                  {" "}Strongest:{" "}
+                  <span style={{ color: T.green, fontWeight: 700 }}>{data.strongest_topic?.replace(/_/g, " ")}</span> 💪
+                </p>
+              </div>
+            )}
 
-            <button className="btn btn-primary" onClick={onBack}
-              style={{ width: "100%", marginTop: 20, padding: "14px" }}>
-              → Practice Again
+            <button className="btn btn-primary" onClick={onBack} style={{ width: "100%", marginTop: 20, padding: 14 }}>
+              Practice Again
             </button>
           </>
         )}
@@ -816,31 +548,24 @@ function ResultPage({ token, onBack }) {
   );
 }
 
-// ─── App Root ──────────────────────────────────────────────────────────────────
-
+// ─── Root ─────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [page, setPage] = useState("login");
-  const [token, setToken] = useState(() => localStorage.getItem("token") || "");
-  const [user, setUser] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("user")) || null; } catch { return null; }
-  });
+  const [page, setPage]       = useState("login");
+  const [token, setToken]     = useState(() => localStorage.getItem("sim_token") || "");
+  const [user, setUser]       = useState(null);
   const [session, setSession] = useState(null);
 
-  useEffect(() => {
-    if (token && user) setPage("dashboard");
-  }, []);
+  useEffect(() => { if (token) setPage("dashboard"); }, []);
 
-  function handleLogin(t, u) {
-    setToken(t); setUser(u); setPage("dashboard");
-  }
+  function handleLogin(t, u) { setToken(t); setUser(u); setPage("dashboard"); }
 
   function handleLogout() {
-    localStorage.removeItem("token"); localStorage.removeItem("user");
+    localStorage.removeItem("sim_token");
     setToken(""); setUser(null); setPage("login");
   }
 
-  function handleStart(sessionId, topic, difficulty, interviewType) {
-    setSession({ sessionId, topic, difficulty, interviewType });
+  function handleStart(sessionId, subject, difficulty) {
+    setSession({ sessionId, subject, difficulty });
     setPage("interview");
   }
 
@@ -848,19 +573,17 @@ export default function App() {
     <>
       <style>{css}</style>
       {page === "login" && <LoginPage onLogin={handleLogin} />}
-      {page === "dashboard" && <DashboardPage token={token} user={user} onStart={handleStart} onLogout={handleLogout} />}
-      {page === "interview" && session && (
-        <InterviewRoomPage
-          token={token}
-          sessionId={session.sessionId}
-          topic={session.topic}
-          difficulty={session.difficulty}
-          interviewType={session.interviewType}
-          onResult={() => setPage("result")}
-          onBack={() => setPage("dashboard")}
-        />
+      {page === "dashboard" && (
+        <DashboardPage token={token} user={user}
+          onStart={handleStart} onLogout={handleLogout}
+          onAnalytics={() => setPage("analytics")} />
       )}
-      {page === "result" && <ResultPage token={token} onBack={() => setPage("dashboard")} />}
+      {page === "interview" && session && (
+        <InterviewPage token={token} sessionId={session.sessionId}
+          subject={session.subject} difficulty={session.difficulty}
+          onDone={() => setPage("analytics")} onBack={() => setPage("dashboard")} />
+      )}
+      {page === "analytics" && <AnalyticsPage token={token} onBack={() => setPage("dashboard")} />}
     </>
   );
 }
