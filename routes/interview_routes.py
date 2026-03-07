@@ -117,22 +117,24 @@ def get_question(
     difficulty: str = Query(...),
     topic_id: Optional[int] = Query(None),
     subtopic_id: Optional[int] = Query(None),
+    session_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Fetch a random question by subject/topic/subtopic and difficulty."""
+    """Fetch a random question — adaptive difficulty, no repeats."""
     question = get_random_question(
         db=db,
         subject_id=subject_id,
         difficulty=difficulty,
         topic_id=topic_id,
         subtopic_id=subtopic_id,
+        session_id=session_id,
     )
 
     if not question:
         raise HTTPException(
             status_code=404,
-            detail="No question found for the given filters. Try seeding the DB first.",
+            detail="No more questions available for this session.",
         )
 
     return QuestionResponse(

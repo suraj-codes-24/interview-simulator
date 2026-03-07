@@ -124,7 +124,30 @@ def get_random_question(
     difficulty: str,
     topic_id: Optional[int] = None,
     subtopic_id: Optional[int] = None,
+    session_id: Optional[int] = None,
 ) -> Question | None:
+    from services.memory_service import get_used_question_ids, get_last_score
+
+    # ── Adaptive difficulty based on last score ──
+    if session_id:
+        last_score = get_last_score(db, session_id)
+        if last_score is not None:
+            if last_score >= 75:
+                difficulty_map = {
+                    "beginner": "intermediate",
+                    "intermediate": "advanced",
+                    "advanced": "advanced",
+                }
+                difficulty = difficulty_map.get(difficulty, difficulty)
+            elif last_score < 40:
+                difficulty_map = {
+                    "advanced": "intermediate",
+                    "intermediate": "beginner",
+                    "beginner": "beginner",
+                }
+                difficulty = difficulty_map.get(difficulty, difficulty)
+
+    # ── Build query ──
     query = db.query(Question).filter(
         Question.subject_id == subject_id,
         Question.difficulty == difficulty,
@@ -133,7 +156,26 @@ def get_random_question(
         query = query.filter(Question.topic_id == topic_id)
     if subtopic_id:
         query = query.filter(Question.subtopic_id == subtopic_id)
-    return query.order_by(func.random()).first()
+
+    # ── Exclude already asked questions ──
+    if session_id:
+        used_ids = get_used_question_ids(db, session_id)
+        if used_ids:
+            query = query.filter(Question.id.notin_(used_ids))
+
+    question = query.order_by(func.random()).first()
+
+    # ── Fallback: if no question found, ignore difficulty filter ──
+    if not question and session_id:
+        used_ids = get_used_question_ids(db, session_id)
+        query = db.query(Question).filter(Question.subject_id == subject_id)
+        if topic_id:
+            query = query.filter(Question.topic_id == topic_id)
+        if used_ids:
+            query = query.filter(Question.id.notin_(used_ids))
+        question = query.order_by(func.random()).first()
+
+    return question
 
 
 # ── Seeder (delegates to data/seed.py) ───────────────────────────────────────

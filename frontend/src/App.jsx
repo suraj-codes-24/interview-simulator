@@ -741,7 +741,7 @@ function InterviewRoomPage({ token, sessionData, onResult, onBack }) {
   async function fetchQuestion() {
     setLoading(true); setResult(null); setAnswer(""); setError("");
     try {
-      let query = `subject_id=${subjectId}&difficulty=${difficulty}`;
+      let query = `subject_id=${subjectId}&difficulty=${difficulty}&session_id=${sessionId}`;
       if (topicId) query += `&topic_id=${topicId}`;
       if (subtopicId) query += `&subtopic_id=${subtopicId}`;
       
