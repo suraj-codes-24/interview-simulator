@@ -1,57 +1,38 @@
+import torch
 import librosa
 import numpy as np
 import whisper
 import parselmouth
 from parselmouth.praat import call
+import soundfile as sf
 import tempfile
 import os
 import re
-import soundfile as sf
-import scipy.signal as scipy_signal
 from concurrent.futures import ThreadPoolExecutor
 
 # ─────────────────────────────────────────────
-# NORMALIZE audio → standard 16kHz mono WAV
-# Fixes browser-converted WAV format issues
+# LOAD WHISPER ONCE at startup (GPU auto-detected)
 # ─────────────────────────────────────────────
-def normalize_audio(audio_path: str) -> str:
-    """Convert any WAV to standard 16kHz mono PCM WAV that all libraries can read."""
-    try:
-        y, sr_rate = librosa.load(audio_path, sr=16000, mono=True)
-        
-        # 1. ROBUST NORMALIZATION: Handle pops/clicks and low volume
-        if len(y) > 0:
-            # Use 99.5th percentile to find the 'real' peak, ignoring sudden pops/clicks (outliers)
-            p99 = np.percentile(np.abs(y), 99.5)
-            abs_max = np.abs(y).max()
-            print(f"[DEBUG] Audio Peak (99.5th%): {p99:.4f} | Absolute Max: {abs_max:.4f}")
-            
-            if p99 > 0.00005:  # Not pure silence
-                # Scale based on p99 to ensure the actual speech reaches a good volume
-                # If there are pops (> p99), they will be clipped later
-                scale_factor = 0.8 / p99 
-                y = y * scale_factor
-                
-                # Clip any amplified pops to avoid digital distortion/overflow
-                y = np.clip(y, -1.0, 1.0)
-                
-                db_boost = 20 * np.log10(scale_factor)
-                print(f"[DEBUG] Applied Robust Boost: +{db_boost:.1f}dB")
-            else:
-                print(f"[DEBUG] Audio is too quiet/silent for normalization")
+print("[VOICE] Loading Whisper model...")
+_whisper_model = None
 
-        normalized_path = audio_path.replace(".wav", "_norm.wav").replace(".webm", "_norm.wav")
-        if normalized_path == audio_path:
-            normalized_path = audio_path + "_norm.wav"
+def get_whisper_model():
+    global _whisper_model
+    if _whisper_model is None:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"[VOICE] Loading Whisper on {device}...")
+        _whisper_model = whisper.load_model("base", device=device)
+        print(f"[VOICE] Whisper loaded on {device}!")
+    return _whisper_model
 
-        sf.write(normalized_path, y, 16000, subtype="PCM_16")
-        return normalized_path
-    except Exception as e:
-        print(f"Audio normalization failed: {e}")
-        return audio_path
+# Pre-load on import
+try:
+    get_whisper_model()
+except Exception as e:
+    print(f"[VOICE] Whisper load failed: {e}")
 
 # ─────────────────────────────────────────────
-# FILLER WORDS to detect
+# FILLER WORDS
 # ─────────────────────────────────────────────
 FILLER_WORDS = [
     "um", "uh", "like", "you know", "basically", "literally",
@@ -60,38 +41,53 @@ FILLER_WORDS = [
 ]
 
 # ─────────────────────────────────────────────
-# TRANSCRIBE audio to text using SpeechRecognition
+# NORMALIZE audio → standard 16kHz mono WAV
 # ─────────────────────────────────────────────
-# Load once at startup — use 'base' for speed, 'small' for accuracy
-_whisper_model = None
+def normalize_audio(audio_path: str) -> str:
+    try:
+        y, sr_rate = librosa.load(audio_path, sr=16000, mono=True)
+        normalized_path = audio_path.rsplit(".", 1)[0] + "_norm.wav"
+        sf.write(normalized_path, y, 16000, subtype="PCM_16")
+        return normalized_path
+    except Exception as e:
+        print(f"[VOICE] Normalization failed: {e}")
+        return audio_path
 
-def get_whisper_model():
-    global _whisper_model
-    if _whisper_model is None:
-        _whisper_model = whisper.load_model("base")  # loads on GPU automatically
-    return _whisper_model
-
+# ─────────────────────────────────────────────
+# TRANSCRIBE using Whisper (local GPU)
+# ─────────────────────────────────────────────
 def transcribe_audio(audio_path: str) -> str:
     try:
         model = get_whisper_model()
-        # Load audio using librosa (soundfile backend) to avoid ffmpeg dependency
-        # Whisper expects 16kHz mono audio
-        y, sr = librosa.load(audio_path, sr=16000)
-        result = model.transcribe(y, language="en", fp16=False)
+        
+        # Load audio manually with librosa → pass as numpy array
+        # This bypasses ffmpeg completely
+        y, sr_rate = librosa.load(audio_path, sr=16000, mono=True)
+        audio_array = y.astype(np.float32)
+        
+        # Use GPU if available
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"[VOICE] Whisper running on: {device}")
+        
+        result = model.transcribe(
+            audio_array,        # numpy array instead of file path
+            language="en",
+            fp16=torch.cuda.is_available(),
+            verbose=False
+        )
         transcript = result["text"].strip().lower()
-        print(f"[DEBUG] Whisper transcript: '{transcript}'")
+        print(f"[VOICE] Transcript: '{transcript}'")
         return transcript
     except Exception as e:
-        print(f"[DEBUG] Whisper error: {e}")
+        print(f"[VOICE] Whisper error: {e}")
         return ""
 
-
 # ─────────────────────────────────────────────
-# SPEAKING PACE — words per minute
+# PACE — words per minute
 # ─────────────────────────────────────────────
 def calculate_pace(transcript: str, duration_seconds: float) -> dict:
     if duration_seconds <= 0:
-        return {"wpm": 0, "label": "unknown", "score": 0}
+        return {"wpm": 0, "label": "unknown", "score": 50}
 
     words = transcript.split()
     word_count = len(words)
@@ -115,13 +111,12 @@ def calculate_pace(transcript: str, duration_seconds: float) -> dict:
 
     return {"wpm": round(wpm, 1), "label": label, "score": score}
 
-
 # ─────────────────────────────────────────────
 # FILLER WORD COUNT
 # ─────────────────────────────────────────────
 def detect_filler_words(transcript: str) -> dict:
     if not transcript:
-        return {"count": 0, "fillers_found": [], "score": 100}
+        return {"count": 0, "fillers_found": [], "score": 100, "filler_ratio_percent": 0}
 
     found = []
     text_lower = transcript.lower()
@@ -153,71 +148,77 @@ def detect_filler_words(transcript: str) -> dict:
         "filler_ratio_percent": round(filler_ratio * 100, 1)
     }
 
-
 # ─────────────────────────────────────────────
-# PITCH & CONFIDENCE via parselmouth (Praat)
+# PITCH & CONFIDENCE via parselmouth
 # ─────────────────────────────────────────────
 def analyze_pitch(audio_path: str) -> dict:
     try:
         sound = parselmouth.Sound(audio_path)
-        pitch = call(sound, "To Pitch", 0.0, 40, 600)  # even lower floor for quiet mic
-        pitch_values = pitch.selected_array['frequency']
-        pitch_values = pitch_values[pitch_values > 0]  # remove unvoiced frames
+
+        # Try multiple pitch floor values for better detection
+        pitch_values = np.array([])
+        for floor in [50, 60, 75]:
+            pitch = call(sound, "To Pitch", 0.0, floor, 600)
+            vals = pitch.selected_array['frequency']
+            vals = vals[vals > 0]
+            if len(vals) > len(pitch_values):
+                pitch_values = vals
 
         if len(pitch_values) == 0:
-            return {"mean_pitch": 0, "pitch_variation": 0, "confidence_score": 50}
+            # Fallback: use librosa for pitch estimation
+            y, sr_rate = librosa.load(audio_path, sr=None)
+            f0 = librosa.yin(y, fmin=50, fmax=600)
+            f0 = f0[f0 > 50]
+            if len(f0) == 0:
+                return {"mean_pitch": 0, "pitch_variation": 0, "confidence_score": 60}
+            pitch_values = f0
 
         mean_pitch = float(np.mean(pitch_values))
         pitch_std = float(np.std(pitch_values))
 
-        # Good variation = expressive speaker, too flat = monotone
-        if pitch_std < 20:
-            confidence_score = 55  # monotone
-        elif pitch_std < 50:
-            confidence_score = 80  # natural variation
-        elif pitch_std < 100:
-            confidence_score = 95  # great expressiveness
+        # More lenient confidence scoring
+        # Normal speech: 10-80 Hz variation is completely fine
+        if pitch_std < 8:
+            confidence_score = 55   # very monotone
+        elif pitch_std < 15:
+            confidence_score = 70   # slightly flat
+        elif pitch_std < 40:
+            confidence_score = 85   # good natural variation
+        elif pitch_std < 80:
+            confidence_score = 95   # great expressiveness
         else:
-            confidence_score = 70  # too variable / nervous
+            confidence_score = 75   # too variable / nervous
+
+        print(f"[VOICE] Pitch: mean={mean_pitch:.1f}Hz std={pitch_std:.1f}Hz confidence={confidence_score}%")
 
         return {
             "mean_pitch": round(mean_pitch, 1),
             "pitch_variation": round(pitch_std, 1),
             "confidence_score": confidence_score
         }
-    except Exception:
-        return {"mean_pitch": 0, "pitch_variation": 0, "confidence_score": 50}
-
+    except Exception as e:
+        print(f"[VOICE] Pitch analysis error: {e}")
+        return {"mean_pitch": 0, "pitch_variation": 0, "confidence_score": 60}
 
 # ─────────────────────────────────────────────
-# SILENCE RATIO via librosa
-# Too much silence = hesitant, too little = rushed
+# SILENCE RATIO
 # ─────────────────────────────────────────────
 def analyze_silence(audio_path: str) -> dict:
     try:
         y, sr_rate = librosa.load(audio_path, sr=None)
-        # Balanced threshold - 40dB below peak. 
-        # 60 was too lenient (kept noise), 15 was too strict (cut speech).
-        intervals = librosa.effects.split(y, top_db=40)
+        intervals = librosa.effects.split(y, top_db=30)
 
         total_frames = len(y)
         voiced_frames = sum(end - start for start, end in intervals)
-        
-        # Filter out tiny intervals (pops/clicks < 50ms)
-        min_samples = int(sr_rate * 0.05)
-        filtered_voiced_frames = sum(end - start for start, end in intervals if (end - start) > min_samples)
-        
-        silence_ratio = 1 - (filtered_voiced_frames / total_frames) if total_frames > 0 else 0
-        
-        print(f"[DEBUG] Voice Segments: {len(intervals)} | Robust Silence Ratio: {silence_ratio*100:.1f}%")
+        silence_ratio = 1 - (voiced_frames / total_frames) if total_frames > 0 else 0
 
-        if silence_ratio < 0.25:
+        if silence_ratio < 0.10:
             label = "minimal pauses"
             score = 85
-        elif silence_ratio < 0.40:
+        elif silence_ratio < 0.25:
             label = "good pausing"
             score = 100
-        elif silence_ratio < 0.55:
+        elif silence_ratio < 0.40:
             label = "some hesitation"
             score = 70
         else:
@@ -229,12 +230,12 @@ def analyze_silence(audio_path: str) -> dict:
             "label": label,
             "score": score
         }
-    except Exception:
+    except Exception as e:
+        print(f"[VOICE] Silence analysis error: {e}")
         return {"silence_ratio": 0, "label": "unknown", "score": 70}
 
-
 # ─────────────────────────────────────────────
-# ENERGY / LOUDNESS — detect low energy = nervous
+# ENERGY / LOUDNESS
 # ─────────────────────────────────────────────
 def analyze_energy(audio_path: str) -> dict:
     try:
@@ -262,21 +263,14 @@ def analyze_energy(audio_path: str) -> dict:
             "label": label,
             "score": score
         }
-    except Exception:
+    except Exception as e:
+        print(f"[VOICE] Energy analysis error: {e}")
         return {"mean_energy": 0, "energy_variation": 0, "label": "unknown", "score": 70}
 
-
 # ─────────────────────────────────────────────
-# GENERATE VOICE FEEDBACK
+# FEEDBACK GENERATOR
 # ─────────────────────────────────────────────
-def generate_voice_feedback(
-    pace: dict,
-    filler: dict,
-    pitch: dict,
-    silence: dict,
-    energy: dict,
-    overall_score: float
-) -> str:
+def generate_voice_feedback(pace, filler, pitch, silence, energy, overall_score) -> str:
     parts = []
 
     if overall_score >= 80:
@@ -286,45 +280,39 @@ def generate_voice_feedback(
     else:
         parts.append("Your delivery needs improvement.")
 
-    # Pace feedback
     if pace["label"] == "too fast":
         parts.append(f"You spoke at {pace['wpm']} WPM — slow down a bit.")
-    elif pace["label"] == "too slow":
-        parts.append(f"You spoke at {pace['wpm']} WPM — try to be more confident and fluent.")
+    elif pace["label"] in ["too slow", "slightly slow"] and pace["wpm"] > 0:
+        parts.append(f"You spoke at {pace['wpm']} WPM — try to be more fluent.")
     elif pace["label"] == "good pace":
         parts.append(f"Good speaking pace ({pace['wpm']} WPM).")
 
-    # Filler feedback
     if filler["count"] > 5:
-        top_fillers = [f["word"] for f in filler["fillers_found"][:3]]
-        parts.append(f"Reduce filler words like: {', '.join(top_fillers)}.")
+        top = [f["word"] for f in filler["fillers_found"][:3]]
+        parts.append(f"Reduce filler words like: {', '.join(top)}.")
     elif filler["count"] > 0:
-        parts.append(f"Minor filler words detected ({filler['count']} total) — keep reducing them.")
+        parts.append(f"Minor filler words detected ({filler['count']}) — keep reducing them.")
 
-    # Confidence from pitch
     if pitch["confidence_score"] < 65:
-        parts.append("Try to vary your tone more — monotone speech sounds less confident.")
+        parts.append("Vary your tone more — monotone speech sounds less confident.")
 
-    # Silence feedback
     if silence["label"] == "too many pauses":
         parts.append("Too many long pauses — practice speaking more fluently.")
 
-    # Energy feedback
     if energy["label"] == "very quiet":
         parts.append("Speak louder and with more energy.")
 
     return " ".join(parts)
 
-
 # ─────────────────────────────────────────────
-# MAIN FUNCTION — full voice analysis
+# MAIN — full voice analysis with parallel processing
 # ─────────────────────────────────────────────
 def analyze_voice(audio_path: str) -> dict:
-    # Normalize to 16kHz for librosa/parselmouth
-    normalized_path = normalize_audio(audio_path)
+    print(f"[VOICE] Starting analysis: {audio_path}")
 
-    print(f"[DEBUG] Audio path: {audio_path}")
-    print(f"[DEBUG] Normalized path: {normalized_path}")
+    # Normalize for librosa/parselmouth
+    normalized_path = normalize_audio(audio_path)
+    print(f"[VOICE] Normalized: {normalized_path}")
 
     # Get duration
     try:
@@ -332,41 +320,39 @@ def analyze_voice(audio_path: str) -> dict:
         duration = librosa.get_duration(y=y, sr=sr_rate)
     except Exception:
         duration = 0
+    print(f"[VOICE] Duration: {duration:.2f}s")
 
-    print(f"[DEBUG] Duration: {duration}")
-
-    # Run transcript + audio analyses IN PARALLEL
+    # Run Whisper + audio analyses IN PARALLEL
     with ThreadPoolExecutor(max_workers=4) as executor:
-        # Whisper works better on normalized WAV to avoid WinError 2 (ffmpeg missing)
-        # We use normalized as it's pre-cleansed and amplified
-        transcript_future = executor.submit(transcribe_audio, normalized_path)
-        pitch_future = executor.submit(analyze_pitch, normalized_path)
-        silence_future = executor.submit(analyze_silence, normalized_path)
-        energy_future = executor.submit(analyze_energy, normalized_path)
+        transcript_future = executor.submit(transcribe_audio, audio_path)      # original for STT
+        pitch_future      = executor.submit(analyze_pitch, normalized_path)
+        silence_future    = executor.submit(analyze_silence, normalized_path)
+        energy_future     = executor.submit(analyze_energy, normalized_path)
 
         transcript = transcript_future.result()
-        pitch = pitch_future.result()
-        silence = silence_future.result()
-        energy = energy_future.result()
+        pitch      = pitch_future.result()
+        silence    = silence_future.result()
+        energy     = energy_future.result()
 
-    pace = calculate_pace(transcript, duration)
+    print(f"[VOICE] All analysis done. Transcript length: {len(transcript)}")
+
+    pace   = calculate_pace(transcript, duration)
     filler = detect_filler_words(transcript)
 
-    # Cleanup normalized file if different from original
-    if normalized_path != audio_path and os.path.exists(normalized_path):
-        os.remove(normalized_path)
-
-    # Overall voice score (weighted)
     overall_score = round(
-        (pace["score"] * 0.25) +
-        (filler["score"] * 0.25) +
-        (pitch["confidence_score"] * 0.20) +
-        (silence["score"] * 0.15) +
-        (energy["score"] * 0.15),
+        (pace["score"]                  * 0.25) +
+        (filler["score"]                * 0.25) +
+        (pitch["confidence_score"]      * 0.20) +
+        (silence["score"]               * 0.15) +
+        (energy["score"]                * 0.15),
         2
     )
 
     feedback = generate_voice_feedback(pace, filler, pitch, silence, energy, overall_score)
+
+    # Cleanup normalized file
+    if normalized_path != audio_path and os.path.exists(normalized_path):
+        os.remove(normalized_path)
 
     return {
         "transcript": transcript,
