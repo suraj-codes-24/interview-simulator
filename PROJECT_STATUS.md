@@ -150,18 +150,23 @@
     - Head movement / stability
     - Emotion detection (calm, nervous, confident)
   - Face score formula:
-    - 40% Eye contact
-    - 30% Head stability
-    - 30% Emotional consistency
+- [x] Install `opencv-python`, `mediapipe`
+- [x] Create `ai_engine/vision_engine.py`:
+  - [x] Eye contact ratio
+  - [x] Head stability
+  - [x] Basic emotion detection (Calm/Confident/Nervous)
 
 ### Step 3 — Integrate Face Score
-- [ ] Add `face_score` to answers table
-- [ ] Update score aggregator with face score
-- [ ] Show face breakdown in frontend result card
+- [x] Add `face_score` to answers table
+- [x] Aggregate vision scores on frontend and submit with answer
+- [x] Update score aggregator:
+  - Technical: 70% NLP + 20% Voice + 10% Face
+  - HR: 40% LLM + 30% Voice + 20% Face + 10% NLP
+- [x] Show face breakdown in frontend result card
 
 ---
 
-## 📊 PHASE 5 — ADVANCED ANALYTICS & DASHBOARD
+## 🏗️ PHASE 5 — ADVANCED ANALYTICS & DASHBOARD (NEXT)
 
 - [ ] Score progression chart over time (line chart)
 - [ ] Per-topic radar chart (strengths vs weaknesses)
@@ -274,8 +279,8 @@ interview_simulator/
 |-------|------|--------|
 | Phase 1 | Auth + NLP Engine + Question Bank + Frontend | ✅ Complete |
 | Phase 2 | Conversation Memory + Follow-ups + Adaptive Engine + Ollama HR | 🔲 Next |
-| Phase 3 | Voice Analysis (librosa + parselmouth) | 🔲 Pending |
-| Phase 4 | Face Analysis (OpenCV + MediaPipe) | 🔲 Pending |
+| Phase 3 | Voice Analysis (librosa + parselmouth + Whisper) | ✅ Complete |
+| Phase 4 | Face Analysis (OpenCV + MediaPipe) | ✅ Complete |
 | Phase 5 | Advanced Analytics + Charts + Reports | 🔲 Pending |
 | Phase 6 | AI Avatar + Conversation Mode + TTS | 🔲 Pending |
 | Phase 7 | Docker + Render + Vercel Deployment | 🔲 Pending |

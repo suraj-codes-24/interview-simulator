@@ -29,7 +29,9 @@ def submit_answer(
         session_id=body.session_id,
         question_id=body.question_id,
         user_answer=body.user_answer,
-        user_id=current_user.id
+        user_id=current_user.id,
+        voice_score=body.voice_score,
+        face_score=body.face_score
     )
 
     if "error" in result:

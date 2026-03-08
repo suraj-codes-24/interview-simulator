@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import VoiceRecorder from "./VoiceRecorder";
+import VisionRecorder from "./VisionRecorder";
 
 
 const API = "http://127.0.0.1:8000";
@@ -736,12 +737,17 @@ function InterviewRoomPage({ token, sessionData, onResult, onBack }) {
   const [error, setError] = useState("");
   const [questionNum, setQuestionNum] = useState(1);
   
+  // Phase 3 & 4: Tracking multimodal data
+  const [voiceResult, setVoiceResult] = useState(null);
+  const [visionDataPoints, setVisionDataPoints] = useState([]);
+  
   const { sessionId, subjectId, topicId, subtopicId, difficulty, interviewType } = sessionData;
 
   useEffect(() => { fetchQuestion(); }, []);
 
   async function fetchQuestion() {
     setLoading(true); setResult(null); setAnswer(""); setError("");
+    setVoiceResult(null); setVisionDataPoints([]);
     try {
       let query = `subject_id=${subjectId}&difficulty=${difficulty}&session_id=${sessionId}`;
       if (topicId) query += `&topic_id=${topicId}`;
@@ -759,11 +765,27 @@ function InterviewRoomPage({ token, sessionData, onResult, onBack }) {
   async function submitAnswer() {
     if (!answer.trim()) { setError("Please write an answer first."); return; }
     setError(""); setSubmitting(true);
+    
+    // Calculate average vision score
+    let avgFaceScore = 70; // Baseline
+    if (visionDataPoints.length > 0) {
+        const sum = visionDataPoints.reduce((acc, p) => acc + (p.eye_contact * 0.5 + p.head_stability * 0.5), 0);
+        avgFaceScore = sum / visionDataPoints.length;
+    }
+
     try {
+      const payload = {
+          session_id: sessionId,
+          question_id: question.question_id,
+          user_answer: answer,
+          voice_score: voiceResult ? voiceResult.voice_score : 0,
+          face_score: avgFaceScore
+      };
+
       const r = await fetch(`${API}/interview/answer`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ session_id: sessionId, question_id: question.question_id, user_answer: answer })
+        body: JSON.stringify(payload)
       });
       const d = await r.json();
       if (!r.ok) { setError(d.detail || "Submission failed"); setSubmitting(false); return; }
@@ -777,7 +799,8 @@ function InterviewRoomPage({ token, sessionData, onResult, onBack }) {
     fetchQuestion();
   }
 
-  const scoreColor = result ? (result.nlp_score >= 70 ? theme.green : result.nlp_score >= 45 ? theme.yellow : theme.red) : theme.accent;
+  const finalScore = result ? result.total_score : 0;
+  const scoreColor = finalScore >= 70 ? theme.green : finalScore >= 45 ? theme.yellow : theme.red;
 
   return (
     <div style={{ minHeight: "100vh", background: theme.bg, paddingTop: 60, paddingBottom: 60 }}>
@@ -806,7 +829,7 @@ function InterviewRoomPage({ token, sessionData, onResult, onBack }) {
         </div>
       </nav>
 
-      <div style={{ maxWidth: 800, margin: "0 auto", padding: "40px 24px", position: "relative", zIndex: 1 }}>
+      <div style={{ maxWidth: 1000, margin: "0 auto", padding: "40px 24px", position: "relative", zIndex: 1 }}>
 
         {/* Question Card */}
         <div className="card fade-in" style={{ padding: 32, marginBottom: 20 }}>
@@ -828,31 +851,51 @@ function InterviewRoomPage({ token, sessionData, onResult, onBack }) {
           )}
         </div>
 
-        {/* Answer Box */}
+        {/* Interaction Row */}
         {question && !result && (
-          <div className="card fade-in" style={{ padding: 28, marginBottom: 20 }}>
-            <label className="label" style={{ marginBottom: 12 }}>Your Answer</label>
-            <textarea
-              className="input"
-              value={answer}
-              onChange={e => setAnswer(e.target.value)}
-              placeholder="Type your answer here... Be thorough — explain concepts, give examples, mention time/space complexity where relevant."
-              style={{ minHeight: 160 }}
-            />
-            
-            <div style={{ marginTop: 12 }}>
-              <VoiceRecorder onVoiceResult={(data) => console.log("Voice result:", data)} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 20, marginBottom: 20 }}>
+            {/* Answer Box */}
+            <div className="card fade-in" style={{ padding: 28 }}>
+              <label className="label" style={{ marginBottom: 12 }}>Your Answer</label>
+              <textarea
+                className="input"
+                value={answer}
+                onChange={e => setAnswer(e.target.value)}
+                placeholder="Type your answer here..."
+                style={{ minHeight: 180 }}
+              />
+              
+              <div style={{ marginTop: 12 }}>
+                <VoiceRecorder onVoiceResult={(data) => setVoiceResult(data)} />
+              </div>
+
+              {error && <div className="error-msg" style={{ marginTop: 12 }}>{error}</div>}
+              <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
+                <button className="btn btn-primary" onClick={submitAnswer} disabled={submitting}
+                  style={{ flex: 1, padding: "13px" }}>
+                  {submitting ? <Loader /> : "→ Submit Answer"}
+                </button>
+                <button className="btn btn-secondary" onClick={onBack} style={{ padding: "13px 20px" }}>
+                  End Session
+                </button>
+              </div>
             </div>
 
-            {error && <div className="error-msg" style={{ marginTop: 12 }}>{error}</div>}
-            <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
-              <button className="btn btn-primary" onClick={submitAnswer} disabled={submitting}
-                style={{ flex: 1, padding: "13px" }}>
-                {submitting ? <Loader /> : "→ Submit Answer"}
-              </button>
-              <button className="btn btn-secondary" onClick={onBack} style={{ padding: "13px 20px" }}>
-                End Session
-              </button>
+            {/* Vision / Camera Feed */}
+            <div className="card fade-in" style={{ padding: 10, display: "flex", flexDirection: "column", gap: 10 }}>
+              <VisionRecorder 
+                sessionId={sessionId} 
+                questionId={question.question_id}
+                onVisionResult={(data) => setVisionDataPoints(prev => [...prev, data])}
+              />
+              <div style={{ padding: "0 10px 10px 10px" }}>
+                <div style={{ fontSize: 11, color: theme.muted, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 6 }}>Analysis Tips</div>
+                <div style={{ fontSize: 12, color: theme.text, lineHeight: "1.4" }}>
+                  • Maintain direct eye contact.<br/>
+                  • Sit upright and keep head stable.<br/>
+                  • Speak with confidence and a calm expression.
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -862,20 +905,22 @@ function InterviewRoomPage({ token, sessionData, onResult, onBack }) {
           <div className="card fade-in" style={{ padding: 28 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
               <h2 className="title" style={{ fontSize: 22, color: "#fff" }}>Score Breakdown</h2>
-              <div className="title" style={{ fontSize: 36, color: scoreColor }}>{result.nlp_score}%</div>
+              <div className="title" style={{ fontSize: 36, color: result.total_score >= 70 ? theme.green : result.total_score >= 45 ? theme.yellow : theme.red }}>
+                 {result.total_score}%
+              </div>
             </div>
 
             {/* Score bars */}
             <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 24 }}>
               {[
-                { label: "Semantic Understanding", value: result.semantic_score, color: theme.accent },
-                { label: "Keyword Coverage", value: result.keyword_score, color: theme.yellow },
-                { label: "Answer Structure", value: result.structure_score, color: theme.green },
+                { label: "NLP Score (Technical/Behavioral)", value: result.nlp_score, color: theme.accent },
+                { label: "Voice Confidence & Pace", value: result.voice_score, color: theme.yellow },
+                { label: "Face Contact & Eye Focus", value: result.face_score, color: theme.green },
               ].map(s => (
                 <div key={s.label}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                     <span style={{ fontSize: 12, color: theme.text }}>{s.label}</span>
-                    <span style={{ fontSize: 12, color: s.color, fontWeight: 600 }}>{s.value}%</span>
+                    <span style={{ fontSize: 12, color: s.color, fontWeight: 600 }}>{Math.round(s.value)}%</span>
                   </div>
                   <ScoreBar value={s.value} color={s.color} />
                 </div>

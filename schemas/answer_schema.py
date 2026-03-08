@@ -6,11 +6,13 @@ class SubmitAnswerRequest(BaseModel):
     session_id: int
     question_id: int
     user_answer: str
+    voice_score: float = 0.0
+    face_score: float = 0.0
 
 
 # --- Response: Score breakdown ---
 class SubmitAnswerResponse(BaseModel):
-    answer_id: int
+    answer_id: int | None
     session_id: int
     question_id: int
     user_answer: str
@@ -18,6 +20,9 @@ class SubmitAnswerResponse(BaseModel):
     keyword_score: float
     structure_score: float
     nlp_score: float
+    voice_score: float = 0.0
+    face_score: float = 0.0
+    total_score: float = 0.0
     feedback: str
 
     class Config:
