@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import VoiceRecorder from "./VoiceRecorder";
 
 const API = "http://127.0.0.1:8000";
 
@@ -405,7 +406,13 @@ function InterviewPage({ token, sessionId, subject, difficulty, onDone, onBack }
             <textarea className="input" value={answer} onChange={e => setAnswer(e.target.value)}
               placeholder="Write a thorough answer — explain the concept, give examples, mention complexity where relevant..."
               style={{ minHeight: 160 }} />
+            
+            <div style={{ marginTop: 12 }}>
+              <VoiceRecorder onVoiceResult={(data) => console.log("Voice result:", data)} />
+            </div>
+
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6, marginBottom: 16 }}>
+
               {err ? <div className="err">{err}</div> : <span />}
               <span style={{ fontSize: 11, color: T.muted }}>
                 {answer.trim().split(/\s+/).filter(Boolean).length} words

@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import VoiceRecorder from "./VoiceRecorder";
+
 
 const API = "http://127.0.0.1:8000";
 
@@ -837,6 +839,11 @@ function InterviewRoomPage({ token, sessionData, onResult, onBack }) {
               placeholder="Type your answer here... Be thorough — explain concepts, give examples, mention time/space complexity where relevant."
               style={{ minHeight: 160 }}
             />
+            
+            <div style={{ marginTop: 12 }}>
+              <VoiceRecorder onVoiceResult={(data) => console.log("Voice result:", data)} />
+            </div>
+
             {error && <div className="error-msg" style={{ marginTop: 12 }}>{error}</div>}
             <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
               <button className="btn btn-primary" onClick={submitAnswer} disabled={submitting}

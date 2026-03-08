@@ -46,7 +46,7 @@ def submit_and_score_answer(
             "engine":         "hr"
         }
     else:
-        result = evaluate_answer(user_answer, question.ideal_answer)
+        result = evaluate_answer(user_answer, question.ideal_answer, question.question_text)
         final_score = result["nlp_score"]
         response = {
             "answer_id":      None,

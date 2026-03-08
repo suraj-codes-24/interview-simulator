@@ -8,41 +8,41 @@ MODEL_NAME = "qwen2.5-coder:7b"
 
 def evaluate_hr_answer(question_text: str, user_answer: str) -> dict:
     """
-    Evaluate a behavioral/HR answer using Ollama (qwen2.5-coder).
-    Returns scores for clarity, structure, communication, relevance + feedback.
+    Evaluate a behavioral/HR answer using Ollama.
+    Returns scores + detailed interviewer-style feedback.
     """
-
     if not user_answer or not user_answer.strip():
-        return {
-            "clarity":       0.0,
-            "structure":     0.0,
-            "communication": 0.0,
-            "relevance":     0.0,
-            "hr_score":      0.0,
-            "feedback":      "No answer was provided."
-        }
+        return _empty_response()
 
-    prompt = f"""You are an expert HR interviewer evaluating a candidate's answer.
+    prompt = f"""You are a senior HR interviewer at a top tech company evaluating a candidate for a software engineering role.
 
-Question: {question_text}
+INTERVIEW QUESTION:
+{question_text}
 
-Candidate Answer: {user_answer}
+CANDIDATE'S ANSWER:
+{user_answer}
 
-Evaluate the answer on these 4 criteria (score each from 0 to 10):
-1. clarity - Is the answer clear and easy to understand?
-2. structure - Is it well structured? (STAR method: Situation, Task, Action, Result)
-3. communication - Does it show good communication skills?
-4. relevance - Is it relevant and directly answers the question?
+EVALUATION TASK:
+Score the answer on these 4 dimensions (each from 0 to 10):
 
-Also write one sentence of feedback.
+1. clarity (0-10): Is the answer clear, focused, and easy to follow? Does it avoid vague or confusing language?
+2. structure (0-10): Does it follow the STAR method (Situation → Task → Action → Result)? Is it well organized?
+3. communication (0-10): Does the candidate communicate professionally and confidently? Is the language appropriate?
+4. relevance (0-10): Does the answer directly address the question? Is it specific or too generic?
 
-Reply ONLY with this JSON format, nothing else:
+Then write feedback as a real interviewer would say it — 2 to 3 sentences. Be specific:
+- Mention what they did well
+- Point out what was missing or weak
+- If structure is weak, tell them to use the STAR method with a brief explanation
+- Do NOT be generic — reference the actual question topic
+
+Reply ONLY with this exact JSON format, no extra text:
 {{
-  "clarity": <number>,
-  "structure": <number>,
-  "communication": <number>,
-  "relevance": <number>,
-  "feedback": "<one sentence>"
+  "clarity": <number 0-10>,
+  "structure": <number 0-10>,
+  "communication": <number 0-10>,
+  "relevance": <number 0-10>,
+  "feedback": "<2-3 sentences of specific interviewer feedback>"
 }}"""
 
     try:
@@ -53,19 +53,18 @@ Reply ONLY with this JSON format, nothing else:
                 "prompt": prompt,
                 "stream": False,
                 "options": {
-                    "temperature": 0.2,
-                    "num_predict": 200,
+                    "temperature": 0.3,
+                    "num_predict": 350,
                 }
             },
-            timeout=60
+            timeout=90
         )
 
         if response.status_code != 200:
-            return _fallback_score(user_answer)
+            return _fallback_score(user_answer, question_text)
 
         raw = response.json().get("response", "")
-        scores = _parse_response(raw)
-        return scores
+        return _parse_response(raw, user_answer, question_text)
 
     except requests.exceptions.ConnectionError:
         return {
@@ -74,34 +73,45 @@ Reply ONLY with this JSON format, nothing else:
             "communication": 0.0,
             "relevance":     0.0,
             "hr_score":      0.0,
-            "feedback":      "Ollama is not running. Start it with: ollama serve"
+            "feedback":      "Ollama is not running. Please start it with: ollama serve"
         }
-    except Exception as e:
-        return _fallback_score(user_answer)
+    except Exception:
+        return _fallback_score(user_answer, question_text)
 
 
-def _parse_response(raw: str) -> dict:
-    """Extract JSON from Ollama response."""
+def _parse_response(raw: str, user_answer: str, question_text: str) -> dict:
+    """Extract and validate JSON from Ollama response."""
     try:
-        # Find JSON block in response
         match = re.search(r'\{.*?\}', raw, re.DOTALL)
         if not match:
-            return _fallback_score("")
+            return _fallback_score(user_answer, question_text)
 
         data = json.loads(match.group())
 
-        clarity       = float(data.get("clarity", 5))
-        structure     = float(data.get("structure", 5))
+        clarity       = float(data.get("clarity",       5))
+        structure     = float(data.get("structure",     5))
         communication = float(data.get("communication", 5))
-        relevance     = float(data.get("relevance", 5))
-        feedback      = str(data.get("feedback", "Good effort."))
+        relevance     = float(data.get("relevance",     5))
+        feedback      = str(data.get("feedback", "")).strip()
 
-        # HR score formula
+        # Clamp values
+        clarity       = max(0.0, min(10.0, clarity))
+        structure     = max(0.0, min(10.0, structure))
+        communication = max(0.0, min(10.0, communication))
+        relevance     = max(0.0, min(10.0, relevance))
+
+        # If Ollama gave empty feedback, generate one
+        if not feedback or len(feedback) < 10:
+            feedback = _generate_fallback_feedback(
+                clarity, structure, communication, relevance, user_answer
+            )
+
+        # HR score formula: structure weighted highest
         hr_score = round(
-            (clarity * 0.25 +
-             structure * 0.30 +
+            (clarity       * 0.25 +
+             structure     * 0.30 +
              communication * 0.25 +
-             relevance * 0.20) * 10,
+             relevance     * 0.20) * 10,
             2
         )
 
@@ -115,28 +125,86 @@ def _parse_response(raw: str) -> dict:
         }
 
     except Exception:
-        return _fallback_score("")
+        return _fallback_score(user_answer, question_text)
 
 
-def _fallback_score(user_answer: str) -> dict:
-    """Simple rule-based fallback if Ollama fails."""
-    word_count = len(user_answer.split()) if user_answer else 0
+def _generate_fallback_feedback(
+    clarity: float,
+    structure: float,
+    communication: float,
+    relevance: float,
+    user_answer: str
+) -> str:
+    """Generate rule-based feedback when Ollama feedback is missing."""
+    parts = []
+    word_count = len(user_answer.split())
 
-    if word_count >= 50:
-        score = 60.0
-        feedback = "Good length answer. Start Ollama for AI-powered evaluation."
-    elif word_count >= 20:
-        score = 40.0
-        feedback = "Decent answer but try to elaborate more."
+    if clarity >= 7:
+        parts.append("Your answer is clear and easy to understand.")
+    elif clarity >= 5:
+        parts.append("Your answer is somewhat clear but could be more focused.")
     else:
-        score = 20.0
-        feedback = "Answer is too short. Use the STAR method for HR questions."
+        parts.append("Try to structure your thoughts more clearly before answering.")
+
+    if structure < 6:
+        parts.append(
+            "Use the STAR method to organize your answer: describe the Situation, "
+            "your Task, the Action you took, and the Result you achieved."
+        )
+    elif structure >= 8:
+        parts.append("Good structure — your answer follows a logical flow.")
+
+    if relevance < 5:
+        parts.append("Make sure your answer directly addresses what was asked.")
+    elif word_count < 20:
+        parts.append("Elaborate more — interviewers expect specific examples and outcomes.")
+
+    return " ".join(parts)
+
+
+def _fallback_score(user_answer: str, question_text: str = "") -> dict:
+    """Rule-based scoring when Ollama is unavailable."""
+    word_count = len(user_answer.split()) if user_answer else 0
+    text = user_answer.lower()
+
+    # Check for STAR indicators
+    has_situation = any(w in text for w in ["when", "once", "situation", "time", "project", "team"])
+    has_action    = any(w in text for w in ["decided", "took", "implemented", "resolved", "handled", "did"])
+    has_result    = any(w in text for w in ["result", "outcome", "achieved", "improved", "success", "learned"])
+
+    star_score = (has_situation + has_action + has_result) / 3
+
+    if word_count >= 60:
+        base = 65.0
+    elif word_count >= 30:
+        base = 50.0
+    elif word_count >= 15:
+        base = 35.0
+    else:
+        base = 20.0
+
+    score = round(base + star_score * 20, 2)
+
+    feedback = _generate_fallback_feedback(
+        score / 10, star_score * 10, score / 10, score / 10, user_answer
+    )
 
     return {
         "clarity":       score,
-        "structure":     score,
+        "structure":     round(star_score * 100, 2),
         "communication": score,
         "relevance":     score,
         "hr_score":      score,
         "feedback":      feedback
+    }
+
+
+def _empty_response() -> dict:
+    return {
+        "clarity":       0.0,
+        "structure":     0.0,
+        "communication": 0.0,
+        "relevance":     0.0,
+        "hr_score":      0.0,
+        "feedback":      "No answer was provided."
     }
