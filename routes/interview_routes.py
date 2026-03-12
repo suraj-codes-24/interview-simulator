@@ -215,7 +215,7 @@ def get_session_answers(
         result.append({
             "answer_id":     a.id,
             "question_text": question.question_text if question else "Unknown question",
-            "user_answer":   a.user_answer,
+            "user_answer":   (a.user_answer or "")[:500],
             "nlp_score":     a.nlp_score,
             "voice_score":   a.voice_score,
             "face_score":    a.face_score,

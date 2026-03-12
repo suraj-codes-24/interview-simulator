@@ -1,7 +1,4 @@
-import requests
-
-OLLAMA_URL  = "http://localhost:11434/api/generate"
-MODEL_NAME  = "qwen2.5-coder:7b"
+from services.ollama_utils import generate, OllamaUnavailable
 
 
 def generate_followup(question_text: str, user_answer: str) -> str:
@@ -26,38 +23,21 @@ Rules:
 - Output only the question"""
 
     try:
-        resp = requests.post(
-            OLLAMA_URL,
-            json={
-                "model":  MODEL_NAME,
-                "prompt": prompt,
-                "stream": False,
-                "options": {
-                    "temperature": 0.4,
-                    "num_predict": 60,
-                },
-            },
-            timeout=60,
-        )
-
-        if resp.status_code != 200:
+        raw = generate(prompt, temperature=0.4, max_tokens=60)
+        if not raw:
             return _fallback(question_text)
 
-        raw = resp.json().get("response", "").strip()
-
-        # Strip any accidental numbering / bullets / quotes
         for prefix in ("1.", "-", "*", '"', "'"):
             if raw.startswith(prefix):
                 raw = raw[len(prefix):].strip()
 
-        # Take only the first sentence if the model returned more
         first_sentence = raw.split("?")[0].strip()
         if first_sentence:
             return first_sentence + "?"
 
         return _fallback(question_text)
 
-    except requests.exceptions.ConnectionError:
+    except OllamaUnavailable:
         return "Ollama is not running — please start it with: ollama serve"
     except Exception:
         return _fallback(question_text)

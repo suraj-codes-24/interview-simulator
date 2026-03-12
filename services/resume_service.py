@@ -1,10 +1,5 @@
 import fitz  # PyMuPDF
-import requests
-import json
-import re
-
-OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL_NAME = "qwen2.5-coder:7b"
+from services.ollama_utils import generate, extract_json_object, OllamaUnavailable
 
 
 def extract_text(pdf_bytes: bytes) -> str:
@@ -65,40 +60,22 @@ Rules:
 - suggestions must be actionable and specific"""
 
     try:
-        resp = requests.post(
-            OLLAMA_URL,
-            json={
-                "model":  MODEL_NAME,
-                "prompt": prompt,
-                "stream": False,
-                "options": {"temperature": 0.3, "num_predict": 600},
-            },
-            timeout=120,
-        )
+        raw  = generate(prompt, temperature=0.3, max_tokens=600)
+        data = extract_json_object(raw)
+        if data:
+            return {
+                "ats_score":        int(data.get("ats_score", 60)),
+                "skills":           data.get("skills",       [])[:12],
+                "suggestions":      data.get("suggestions",  [])[:5],
+                "questions":        data.get("questions",    [])[:5],
+                "raw_text_preview": resume_text[:300],
+            }
+        return _fallback(resume_text)
 
-        if resp.status_code != 200:
-            return _fallback(resume_text)
-
-        raw = resp.json().get("response", "")
-        match = re.search(r'\{.*\}', raw, re.DOTALL)
-        if not match:
-            return _fallback(resume_text)
-
-        data = json.loads(match.group())
+    except OllamaUnavailable:
         return {
-            "ats_score":          int(data.get("ats_score", 60)),
-            "skills":             data.get("skills", [])[:12],
-            "suggestions":        data.get("suggestions", [])[:5],
-            "questions":          data.get("questions", [])[:5],
-            "raw_text_preview":   resume_text[:300],
-        }
-
-    except requests.exceptions.ConnectionError:
-        return {
-            "ats_score": 0,
-            "skills": [],
+            "ats_score": 0, "skills": [], "questions": [],
             "suggestions": ["Ollama is not running. Start it with: ollama serve"],
-            "questions": [],
             "raw_text_preview": resume_text[:300],
         }
     except Exception:

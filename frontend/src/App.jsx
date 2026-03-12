@@ -779,11 +779,13 @@ function InterviewRoomPage({ token, user, sessionData, onResult, onBack }) {
   const [latestVision, setLatestVision]         = useState(null);
 
   // ── Follow-up ────────────────────────────────────────────────────────
-  const [followup, setFollowup]             = useState(null);   // { question }
+  const MAX_FOLLOWUPS = 2;
+  const [followup, setFollowup]             = useState(null);
   const [followupAnswer, setFollowupAnswer] = useState("");
   const [followupLoading, setFollowupLoading] = useState(false);
   const [followupSubmitting, setFollowupSubmitting] = useState(false);
   const [followupResult, setFollowupResult] = useState(null);
+  const [followupCount, setFollowupCount]   = useState(0);
 
   const { sessionId, subjectId, topicId, subtopicId, difficulty, subjectName } = sessionData;
 
@@ -800,7 +802,7 @@ function InterviewRoomPage({ token, user, sessionData, onResult, onBack }) {
   async function fetchQuestion() {
     setLoading(true); setResult(null); setAnswer(""); setError("");
     setVoiceResult(null); setVisionDataPoints([]);
-    setFollowup(null); setFollowupAnswer(""); setFollowupResult(null);
+    setFollowup(null); setFollowupAnswer(""); setFollowupResult(null); setFollowupCount(0);
     try {
       let q = `subject_id=${subjectId}&difficulty=${difficulty}&session_id=${sessionId}`;
       if (topicId)    q += `&topic_id=${topicId}`;
@@ -837,7 +839,7 @@ function InterviewRoomPage({ token, user, sessionData, onResult, onBack }) {
       if (!r.ok) { setError(d.detail || "Submission failed"); setSubmitting(false); return; }
       setResult(d);
       // Trigger follow-up for weak answers
-      if (d.total_score < 70) {
+      if (d.total_score < 70 && followupCount < MAX_FOLLOWUPS) {
         fetchFollowup(question.question_text, finalAnswer);
       }
     } catch { setError("Server error"); }
@@ -853,7 +855,7 @@ function InterviewRoomPage({ token, user, sessionData, onResult, onBack }) {
         body: JSON.stringify({ question_text: questionText, user_answer: userAnswer, session_id: sessionId }),
       });
       const d = await r.json();
-      if (r.ok) setFollowup({ question: d.followup_question });
+      if (r.ok) { setFollowup({ question: d.followup_question }); setFollowupCount(c => c + 1); }
     } catch { /* silent — follow-up is optional */ }
     setFollowupLoading(false);
   }
@@ -1196,6 +1198,26 @@ function InterviewRoomPage({ token, user, sessionData, onResult, onBack }) {
 function ResultsPage({ token, user, lastResult, onBack, onRetake }) {
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [pdfLoading, setPdfLoading] = useState(false);
+
+  async function downloadPDF(sessionId) {
+    if (!sessionId) { alert("No session ID available for this result."); return; }
+    setPdfLoading(true);
+    try {
+      const r = await fetch(`${API}/reports/session/${sessionId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) { alert("Could not generate PDF."); setPdfLoading(false); return; }
+      const blob = await r.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `interview_report_${sessionId}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch { alert("Download failed."); }
+    setPdfLoading(false);
+  }
 
   useEffect(() => {
     fetch(`${API}/analytics/me`, { headers: { Authorization: `Bearer ${token}` } })
@@ -1330,6 +1352,11 @@ function ResultsPage({ token, user, lastResult, onBack, onRetake }) {
               <button onClick={onRetake} style={{ background: "#6366F1", color: "#fff", fontWeight: 600, padding: "12px 28px", borderRadius: 10, fontSize: 14, display: "flex", alignItems: "center", gap: 8 }}>
                 ↺ Retake Interview
               </button>
+              {lastResult?.session_id && (
+                <button onClick={() => downloadPDF(lastResult.session_id)} disabled={pdfLoading} style={{ background: pdfLoading ? "#334155" : "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.3)", color: "#A5B4FC", fontWeight: 600, padding: "12px 28px", borderRadius: 10, fontSize: 14, display: "flex", alignItems: "center", gap: 8, cursor: pdfLoading ? "default" : "pointer" }}>
+                  {pdfLoading ? <><span className="spin">⟳</span> Generating...</> : "⬇ Download PDF"}
+                </button>
+              )}
             </div>
           </>
         )}
@@ -2747,10 +2774,30 @@ function ReplayPage({ token, user, onNav, onLogout }) {
   const [coaching, setCoaching]         = useState(null);
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [loadingAnswers, setLoadingAnswers]   = useState(false);
-  const [loadingCoach, setLoadingCoach]       = useState(false);
+  const [loadingCoach, setLoadingCoach]   = useState(false);
   const [error, setError]               = useState("");
+  const [pdfLoading, setPdfLoading]     = useState(false);
 
   const card = { background: "#0F1629", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12 };
+
+  async function downloadPDF() {
+    if (!selectedId) return;
+    setPdfLoading(true);
+    try {
+      const r = await fetch(`${API}/reports/session/${selectedId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) { alert("Could not generate PDF."); setPdfLoading(false); return; }
+      const blob = await r.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `interview_report_${selectedId}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch { alert("Download failed."); }
+    setPdfLoading(false);
+  }
 
   // Load sessions on mount
   useEffect(() => {
@@ -2858,6 +2905,13 @@ function ReplayPage({ token, user, onNav, onLogout }) {
 
       {answers.length > 0 && !loadingAnswers && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }} className="fade-in">
+
+          {/* Download PDF row */}
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button onClick={downloadPDF} disabled={pdfLoading} style={{ background: pdfLoading ? "#334155" : "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.3)", color: "#A5B4FC", fontWeight: 600, padding: "9px 18px", borderRadius: 8, fontSize: 13, cursor: pdfLoading ? "default" : "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+              {pdfLoading ? <><span className="spin">⟳</span> Generating...</> : "⬇ Download PDF Report"}
+            </button>
+          </div>
 
           {/* Score trend chart */}
           <div style={{ ...card, padding: 20 }}>

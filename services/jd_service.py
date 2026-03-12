@@ -1,9 +1,5 @@
-import requests
-import json
-import re
-
-OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL_NAME = "qwen2.5-coder:7b"
+import difflib
+from services.ollama_utils import generate, extract_json_object, extract_json_array
 
 # Map of JD keywords → topic names used in our DB analytics
 SKILL_TOPIC_MAP = {
@@ -44,20 +40,12 @@ Job Description:
 {jd_text[:2000]}"""
 
     try:
-        resp = requests.post(
-            OLLAMA_URL,
-            json={"model": MODEL_NAME, "prompt": prompt, "stream": False,
-                  "options": {"temperature": 0.2, "num_predict": 300}},
-            timeout=60,
-        )
-        if resp.status_code == 200:
-            raw = resp.json().get("response", "")
-            match = re.search(r'\{.*?\}', raw, re.DOTALL)
-            if match:
-                data = json.loads(match.group())
-                skills = data.get("skills", [])
-                if skills:
-                    return [str(s).strip() for s in skills[:20]]
+        raw  = generate(prompt, temperature=0.2, max_tokens=300)
+        data = extract_json_object(raw)
+        if data:
+            skills = data.get("skills", [])
+            if skills:
+                return [str(s).strip() for s in skills[:20]]
     except Exception:
         pass
 
@@ -92,22 +80,12 @@ Return ONLY a JSON array of exactly 7 short task strings (one per day, max 15 wo
 ["Day 1 task", "Day 2 task", "Day 3 task", "Day 4 task", "Day 5 task", "Day 6 task", "Day 7 task"]"""
 
     try:
-        resp = requests.post(
-            OLLAMA_URL,
-            json={"model": MODEL_NAME, "prompt": prompt, "stream": False,
-                  "options": {"temperature": 0.4, "num_predict": 350}},
-            timeout=60,
-        )
-        if resp.status_code == 200:
-            raw = resp.json().get("response", "")
-            match = re.search(r'\[.*?\]', raw, re.DOTALL)
-            if match:
-                tasks = json.loads(match.group())
-                if len(tasks) >= 3:
-                    # Ensure exactly 7 entries
-                    while len(tasks) < 7:
-                        tasks.append(f"Day {len(tasks) + 1}: Review and practice mock problems")
-                    return [str(t).strip() for t in tasks[:7]]
+        raw   = generate(prompt, temperature=0.4, max_tokens=350)
+        tasks = extract_json_array(raw)
+        if tasks and len(tasks) >= 3:
+            while len(tasks) < 7:
+                tasks.append(f"Day {len(tasks) + 1}: Review and practice mock problems")
+            return [str(t).strip() for t in tasks[:7]]
     except Exception:
         pass
 
@@ -147,13 +125,20 @@ def compare_with_analytics(
         # Fall back: treat each skill string directly as a topic name
         matched_topics = {s.title() for s in required_skills}
 
+    db_topic_keys = list(topic_breakdown.keys())
+
     for topic in matched_topics:
-        # Find the closest match in topic_breakdown (case-insensitive)
         score = None
+        # 1. Direct substring match
         for db_topic, db_score in topic_breakdown.items():
             if topic.lower() in db_topic.lower() or db_topic.lower() in topic.lower():
                 score = db_score
                 break
+        # 2. Fuzzy match via difflib if no direct match
+        if score is None and db_topic_keys:
+            close = difflib.get_close_matches(topic, db_topic_keys, n=1, cutoff=0.6)
+            if close:
+                score = topic_breakdown[close[0]]
         match_scores[topic] = score  # None = not yet practiced
 
     missing_skills = [t for t, s in match_scores.items() if s is None or s < 50]
