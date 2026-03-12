@@ -21,9 +21,6 @@ import models.subtopic
 import models.question
 import models.interview_session
 import models.answer
-import models.score
-import models.conversation_memory
-import models.analytics
 
 # Create all tables on startup
 Base.metadata.create_all(bind=engine)

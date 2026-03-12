@@ -18,6 +18,8 @@ class UserResponse(BaseModel):
     email: str
     branch: Optional[str] = None
     year: Optional[int] = None
+    college: Optional[str] = None
+    avatar_url: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -26,3 +28,15 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str
     user: UserResponse
+
+
+class UpdateProfileRequest(BaseModel):
+    name: Optional[str] = None
+    branch: Optional[str] = None
+    year: Optional[int] = None
+    college: Optional[str] = None
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str

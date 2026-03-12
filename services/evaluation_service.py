@@ -5,7 +5,6 @@ from models.question import Question
 from models.interview_session import InterviewSession
 from ai_engine.nlp_engine import evaluate_answer
 from ai_engine.hr_engine import evaluate_hr_answer
-from services.memory_service import save_memory
 
 
 def submit_and_score_answer(
@@ -35,72 +34,69 @@ def submit_and_score_answer(
     if question.type == "hr":
         result = evaluate_hr_answer(question.question_text, user_answer)
         nlp_score = result["hr_score"]
-        # HR Score = 40% LLM + 30% Voice + 20% Face + 10% NLP (here nlp is simple semantic check)
-        # For our system, the LLM result is already behavioral-focused
+
+        # HR: 50% LLM + 30% Voice + 20% Face
         total_score = (nlp_score * 0.5) + (voice_score * 0.3) + (face_score * 0.2)
-        response = {
-            "answer_id":      None,
-            "session_id":     session_id,
-            "question_id":    question_id,
-            "user_answer":    user_answer,
-            "semantic_score": result["clarity"],
-            "keyword_score":  result["structure"],
-            "structure_score":result["communication"],
-            "nlp_score":      nlp_score,
-            "voice_score":    voice_score,
-            "face_score":     face_score,
-            "total_score":    round(total_score, 1),
-            "feedback":       result["feedback"],
-            "engine":         "hr"
-        }
+
+        semantic_score  = result.get("clarity", 0.0)
+        keyword_score   = result.get("structure", 0.0)
+        depth_score     = 0.0
+        structure_score = result.get("communication", 0.0)
+        feedback        = result.get("feedback", "")
+        engine_used     = "hr"
+
     else:
         result = evaluate_answer(user_answer, question.ideal_answer, question.question_text)
-        nlp_score = result["nlp_score"]
+        nlp_score = result["overall_score"]
+
         # Technical: 70% NLP + 20% Voice + 10% Face
         total_score = (nlp_score * 0.7) + (voice_score * 0.2) + (face_score * 0.1)
-        response = {
-            "answer_id":      None,
-            "session_id":     session_id,
-            "question_id":    question_id,
-            "user_answer":    user_answer,
-            "semantic_score": result["semantic_score"],
-            "keyword_score":  result["keyword_score"],
-            "structure_score":result["structure_score"],
-            "nlp_score":      nlp_score,
-            "voice_score":    voice_score,
-            "face_score":     face_score,
-            "total_score":    round(total_score, 1),
-            "feedback":       result["feedback"],
-            "engine":         "nlp"
-        }
 
-    # --- Save answer to DB ---
+        semantic_score  = result.get("semantic_score", 0.0)
+        keyword_score   = result.get("keyword_score", 0.0)
+        depth_score     = result.get("depth_score", 0.0)
+        structure_score = result.get("structure_score", 0.0)
+        feedback        = result.get("feedback", "")
+        engine_used     = "nlp"
+
+    total_score = round(total_score, 1)
+
+    # --- Save answer with full breakdown ---
     answer = Answer(
-        session_id=session_id,
-        question_id=question_id,
-        user_answer=user_answer,
-        nlp_score=nlp_score,
-        voice_score=voice_score,
-        face_score=face_score,
-        total_score=total_score
+        session_id      = session_id,
+        question_id     = question_id,
+        user_answer     = user_answer,
+        semantic_score  = round(float(semantic_score), 2),
+        keyword_score   = round(float(keyword_score), 2),
+        depth_score     = round(float(depth_score), 2),
+        structure_score = round(float(structure_score), 2),
+        nlp_score       = round(float(nlp_score), 2),
+        voice_score     = round(float(voice_score), 2),
+        face_score      = round(float(face_score), 2),
+        total_score     = total_score,
+        feedback        = feedback,
     )
     db.add(answer)
+
+    # --- Update session stats ---
+    session.questions_answered = (session.questions_answered or 0) + 1
+
     db.commit()
     db.refresh(answer)
 
-    response["answer_id"] = answer.id
-
-    # --- Save to conversation memory ---
-    save_memory(
-        db=db,
-        session_id=session_id,
-        question_id=question_id,
-        question_text=question.question_text,
-        user_answer=user_answer,
-        score=total_score,  # save the aggregated score for tracking
-        topic=question.topic.name if question.topic else "",
-        subtopic=question.subtopic.name if question.subtopic else "",
-        difficulty=question.difficulty,
-    )
-
-    return response
+    return {
+        "answer_id":      answer.id,
+        "session_id":     session_id,
+        "question_id":    question_id,
+        "user_answer":    user_answer,
+        "semantic_score": answer.semantic_score,
+        "keyword_score":  answer.keyword_score,
+        "depth_score":    answer.depth_score,
+        "structure_score":answer.structure_score,
+        "nlp_score":      answer.nlp_score,
+        "voice_score":    answer.voice_score,
+        "face_score":     answer.face_score,
+        "total_score":    answer.total_score,
+        "feedback":       answer.feedback,
+        "engine":         engine_used,
+    }

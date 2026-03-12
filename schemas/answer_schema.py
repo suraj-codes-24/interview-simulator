@@ -18,6 +18,7 @@ class SubmitAnswerResponse(BaseModel):
     user_answer: str
     semantic_score: float
     keyword_score: float
+    depth_score: float
     structure_score: float
     nlp_score: float
     voice_score: float = 0.0

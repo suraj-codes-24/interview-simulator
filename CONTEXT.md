@@ -1,324 +1,446 @@
-# 🤖 AI Multimodal Interview Simulator — Project Context
-> Use this file to continue development in a new session
+# AI Multimodal Interview Simulator — Project Context
+> Synced with real codebase: March 12, 2026 | Read this at the start of every session
 
 ---
 
-## 📍 Project Info
+## Project Info
+
 | Field | Value |
-|-------|-------|
-| **Location** | `C:\Users\suraj\Desktop\interview_simulator` |
-| **GitHub** | https://github.com/suraj-codes-24/interview-simulator |
-| **Backend** | FastAPI on `http://localhost:8000` |
-| **Frontend** | React + Vite on `http://localhost:5173` |
-| **Database** | PostgreSQL — `interview_db` |
-| **DB User** | `postgres` |
-| **Test Login** | `suraj@test.com` / `test123` |
-| **GPU** | NVIDIA RTX 4050 Laptop (Ollama on CUDA) |
-| **Stack** | FastAPI + PostgreSQL + React + Vite + Tailwind |
+|---|---|
+| Location | `C:\Users\suraj\Desktop\interview_simulator` |
+| GitHub | https://github.com/suraj-codes-24/interview-simulator |
+| Backend | FastAPI — `http://localhost:8000` |
+| Frontend | React + Vite — `http://localhost:5173` |
+| API Docs | `http://localhost:8000/docs` |
+| Database | PostgreSQL — `interview_db` (user: `postgres`, pass: `admin123`) |
+| Test Login | `suraj@test.com` / `test123` |
+| GPU | NVIDIA RTX 4050 Laptop (Ollama on CUDA) |
+| Stack | Python 3.11 + FastAPI + PostgreSQL + React + Vite |
 
 ---
 
-## ⚠️ FIRST THING TO DO IN A NEW SESSION
-```bash
-cd C:\Users\suraj\Desktop\interview_simulator
-git reset --hard HEAD
-git clean -fd
-git status  # should say "nothing to commit, working tree clean"
-```
+## Start Every Session
 
-Then start both servers:
 ```bash
-# Terminal 1 - Backend
+# Terminal 1 — Backend
+cd C:\Users\suraj\Desktop\interview_simulator
 uvicorn main:app --reload
 
-# Terminal 2 - Frontend
-cd frontend
+# Terminal 2 — Frontend
+cd C:\Users\suraj\Desktop\interview_simulator\frontend
 npm run dev
 ```
 
 ---
 
-## ✅ PHASES COMPLETED
+## Phases Completed
 
-### Phase 1 — Core Backend ✅
-- JWT Authentication (login + register)
-- PostgreSQL models — users, sessions, questions, answers
-- 7 subjects, 52 topics, 129 subtopics, 133 questions seeded
-- Subject types: `technical` / `hr`
-- NLP Engine with full CONCEPT_MAP covering:
-  - DSA (arrays, linked lists, trees, graphs, sorting, DP...)
-  - OOP (encapsulation, inheritance, polymorphism...)
-  - OS (processes, threads, deadlock, scheduling...)
-  - DBMS (normalization, ACID, indexing, joins...)
-  - Networks (TCP/IP, HTTP, DNS, OSI...)
-  - System Design (load balancer, caching, CAP theorem...)
-  - ML (supervised, neural networks, transformers...)
-- Score formula: 45% semantic + 25% keyword + 20% depth + 10% structure
-- Analytics endpoint (`GET /analytics/me`)
-
-### Phase 2 — Intelligence Layer ✅
-- Conversation memory (`models/conversation_memory.py`)
-- Adaptive difficulty engine — adjusts based on last score
-- No-repeat questions within a session
-- HR Engine via Ollama `qwen2.5-coder:7b` (local GPU)
-- Routing: `question.type == "hr"` → HR engine, else → NLP engine
-
-### Phase 3 — Voice Analysis ✅
-- **Recording:** `ScriptProcessorNode` in browser — raw PCM float32 (no ffmpeg needed)
-- **Transcription:** OpenAI Whisper (local, ~1s on CPU)
-- **Pace:** WPM calculation, scored 50-100
-- **Filler words:** detects um/uh/like/basically etc.
-- **Pitch/Confidence:** parselmouth with multi-floor detection + librosa fallback
-- **Silence ratio:** librosa voice activity detection (top_db=15)
-- **Energy:** librosa RMS energy
-- **Score weights:** pace 25% + filler 25% + confidence 20% + silence 15% + energy 15%
-- **Endpoint:** `POST /api/voice/analyze`
-- **Key files:** `ai_engine/voice_engine.py`, `routes/voice_routes.py`, `VoiceRecorder.jsx`
-
-### Phase 4 — Face Analysis + Multimodal Scoring ✅
-- **MediaPipe FaceMesh** — 468 facial landmarks
-- **Eye contact** — iris centering in eye sockets
-- **Head stability** — nose tip position tracking
-- **Emotion detection** — calm / confident / nervous
-- **Multimodal scoring formula:**
-  - Technical: 70% NLP + 20% Voice + 10% Face
-  - HR: 40% LLM + 30% Voice + 20% Face + 10% NLP
-- Live camera sidebar in interview room
-- Score breakdown card (NLP + Voice + Face)
-- **Key files:** `ai_engine/vision_engine.py`, `routes/vision_routes.py`, `VisionRecorder.jsx`
-- **Note:** mediapipe 0.10.11 required on Windows (not latest)
+| Phase | What Was Built |
+|---|---|
+| Phase 1 | JWT auth, PostgreSQL models, NLP engine with CONCEPT_MAP, 133 questions seeded across 7 subjects / 52 topics / 129 subtopics |
+| Phase 2 | Ollama HR engine (qwen2.5-coder:7b on local GPU), adaptive difficulty, no-repeat questions per session |
+| Phase 3 | Voice analysis: Whisper (local, CPU), librosa, parselmouth — pace / filler words / confidence / silence / energy |
+| Phase 4 | Face analysis: MediaPipe FaceMesh 0.10.11 — eye contact / head stability / emotion detection. Multimodal scoring. |
+| Phase 5 | Frontend redesign: 9 pages in App.jsx, recharts, Figma-matched layouts |
+| Phase 5b | DB redesign: dropped 3 dead tables, added full NLP breakdown columns to answers, added college/avatar_url/created_at to users |
+| Phase 5c | Interview Room: no-scroll 100vh layout, inline audio recording, mic button in bottom bar |
 
 ---
 
-## 📁 Key File Structure
+## Frontend Pages — Real Status
+
+All pages live in `frontend/src/App.jsx` (~1600 lines). State-based routing (no React Router).
+
+| Page Function | In Sidebar | Page State | Status |
+|---|---|---|---|
+| `LandingPage` | No (pre-login) | `landing` | Complete |
+| `LoginPage` | No (pre-login) | `login` | Complete |
+| `DashboardPage` | Yes — "Dashboard" | `dashboard` | Complete |
+| `SubjectPage` | Yes — "Interview" | `subject` | Complete |
+| `InterviewRoomPage` | No (full-screen) | `interview` | Complete — no-scroll redesign, inline mic |
+| `ResultsPage` | No (post-interview) | `result` | Complete |
+| `AnalyticsPage` | Yes — "Analytics" | `analytics` | Complete |
+| `ProfilePage` | Yes — "Profile" | `profile` | Display-only — wired and working. Edit form NOT built yet. |
+
+**Page navigation flow:**
+`landing` → `login` → `dashboard` → `subject` → `interview` → `result`
+Sidebar nav: `dashboard` ↔ `interview` ↔ `analytics` ↔ `profile`
+
+**Pages NOT yet built (all need to be added to App.jsx):**
+
+| Page | Page State | Priority |
+|---|---|---|
+| SettingsPage | `settings` | Phase 6 |
+| OnboardingPage | `onboarding` | Phase 6 |
+| CodingInterviewPage | `coding` | Phase 7 |
+| ResumeAnalyserPage | `resume` | Phase 9 |
+| JDAnalyserPage | `jd` | Phase 10 |
+| ReplayPage | `replay` | Phase 11 |
+
+---
+
+## Real Database Schema
+
+Verified directly from PostgreSQL on March 12, 2026.
+
+### `users`
 ```
-interview_simulator/
-├── main.py                          ← FastAPI app entry point
-├── database.py                      ← PostgreSQL connection
-├── requirements.txt
-├── ai_engine/
-│   ├── nlp_engine.py               ← NLP scoring + CONCEPT_MAP
-│   ├── hr_engine.py                ← Ollama HR evaluation
-│   ├── voice_engine.py             ← Whisper + librosa + parselmouth
-│   └── vision_engine.py            ← MediaPipe face analysis
-├── models/
-│   └── conversation_memory.py
-├── services/
-│   ├── interview_service.py        ← adaptive difficulty + no-repeat
-│   ├── evaluation_service.py       ← routes hr vs technical + multimodal
-│   ├── memory_service.py
-│   └── vision_service.py
-├── routes/
-│   ├── interview_routes.py
-│   ├── answer_routes.py
-│   ├── voice_routes.py
-│   └── vision_routes.py
-├── schemas/
-└── frontend/                       ← React + Vite (Figma design)
-    └── src/app/components/pages/
-        ├── LandingPage.tsx
-        ├── LoginPage.tsx
-        ├── DashboardPage.tsx
-        ├── InterviewRoomPage.tsx
-        ├── ResultsPage.tsx
-        └── AnalyticsPage.tsx
+id            integer  PK
+name          varchar
+email         varchar  UNIQUE
+password_hash varchar
+branch        varchar
+year          integer
+avatar_url    varchar        ← added Phase 5b
+college       varchar        ← added Phase 5b
+created_at    timestamp      DEFAULT NOW()
 ```
 
----
-
-## 🎨 Frontend Design System
-- **Background:** `#0F172A` (dark navy)
-- **Cards:** `#1E293B` with border `#334155`
-- **Primary accent:** `#6366F1` (indigo)
-- **Secondary:** `#22C55E` (green), `#F59E0B` (amber), `#EC4899` (pink)
-- **Text:** `#F1F5F9` primary, `#94A3B8` secondary
-- **Font:** Inter
-- **Style:** Glassmorphism cards, framer-motion animations
-
-### Target Page Designs:
-1. **Landing** — split layout, feature cards 2x2, How It Works steps, stats bar
-2. **Login** — split panel, left has live AI demo card, right has form + OAuth
-3. **Interview Room** — AI avatar left, live camera right, circular metrics, live transcript
-4. **Results** — overall ring score, 4 score cards, radar chart, per-question timeline, AI summary
-5. **Analytics** — stat cards with sparklines, score progression chart, skills radar, topic mastery tags
-
----
-
-## 🚀 NEXT SESSION PLAN
-
-### Step 1 — Fix & Push
-- [ ] `git reset --hard HEAD && git clean -fd`
-- [ ] Verify backend + frontend both start cleanly
-- [ ] `git push origin main`
-
-### Step 2 — Frontend Redesign
-- [ ] Rebuild all 5 pages to match Figma screenshots exactly
-- [ ] Install recharts for Analytics + Results charts
-- [ ] Navbar: Dashboard | Analytics | Interview tabs + user avatar
-- [ ] Keep all existing API connections working
-
-### Step 3 — Phase 5: Coding Interview Round
-- [ ] Monaco Editor integration (VS Code in browser)
-- [ ] LeetCode-style problems in DB
-- [ ] Auto test case execution (backend sandboxed Python runner)
-- [ ] AI reviews code quality + time complexity
-
-### Step 4 — Phase 6: Interview Realism
-- [ ] AI follow-up questions based on your answer
-- [ ] Silence detection — AI prompts if you pause too long
-- [ ] AI interviewer personality modes (strict / friendly / neutral)
-- [ ] Per-answer detailed feedback with ideal answer comparison
-
-### Step 5 — Phase 7: PDF Reports
-- [ ] Downloadable PDF after every session
-- [ ] Full session report: scores, transcript, feedback, action items
-
-### Step 6 — Phase 8: Deployment
-- [ ] Docker containerization
-- [ ] Backend → Render
-- [ ] Frontend → Vercel
-
----
-
-## 🔧 Known Issues to Fix
-- Whisper running on CPU (torch.cuda not detecting GPU) — needs fix
-- Parselmouth pitch occasionally returns 0 Hz — librosa fallback works but improve
-- mediapipe must be version `0.10.11` on Windows (not latest)
-- Frontend needs full redesign to match Figma screenshots
-
----
-
-## 💡 Feature Ideas Backlog
-- AI follow-up questions (most important)
-- Session video recording + replay
-- Silence detection with AI prompts
-- Company-specific question modes (Google, Amazon, Microsoft)
-- Body language timestamp report
-- Speaking pattern heatmap
-- Daily practice streaks + badges
-- Peer mock interview matching
-
----
-
-## 🌟 Future Enhancements (Portfolio-Level)
-
-### 1️⃣ Coding Interview Round
-Full LeetCode-style coding environment inside the interview room.
-
-**Backend Endpoint:**
+### `subjects`
 ```
-POST /code/run
-→ Receive user code
-→ Execute in sandbox environment
-→ Return output, runtime, errors
+id    integer  PK
+name  varchar  UNIQUE
+type  varchar  DEFAULT 'technical'   (values: 'technical' | 'hr')
+```
+Data: 7 subjects — DSA, OOPS, System Design, DBMS, OS & Networking, Machine Learning, Behavioral (hr)
+
+### `topics`
+```
+id          integer  PK
+subject_id  integer  FK → subjects.id
+name        varchar
+```
+Data: 52 topics total
+
+### `subtopics`
+```
+id        integer  PK
+topic_id  integer  FK → topics.id
+name      varchar
+```
+Data: 129 subtopics total
+
+### `questions`
+```
+id               integer  PK
+subject_id       integer  FK → subjects.id
+topic_id         integer  FK → topics.id
+subtopic_id      integer  FK → subtopics.id
+title            varchar
+difficulty       varchar       (beginner | intermediate | advanced | expert)
+type             varchar       (technical | hr)
+question_text    text
+ideal_answer     text
+tags             varchar
+companies        varchar
+time_complexity  varchar
+space_complexity varchar
+```
+Data: 133 questions — 30 beginner, 58 intermediate, 38 advanced, 7 expert. 127 technical, 6 hr.
+
+### `interview_sessions`
+```
+id                integer   PK
+user_id           integer   FK → users.id
+interview_type    varchar   (technical | hr)
+subject_id        integer   FK → subjects.id
+topic_id          integer   FK → topics.id
+subtopic_id       integer   FK → subtopics.id
+difficulty        varchar
+status            varchar   DEFAULT 'active'   (active | completed | abandoned)
+total_questions   integer   DEFAULT 0
+questions_answered integer  DEFAULT 0
+start_time        timestamp
+end_time          timestamp
+final_score       float
 ```
 
-**AI Evaluation will analyze:** Time complexity, code quality, edge case handling, readability
-
----
-
-### 2️⃣ AI Follow-Up Questions
-Make the interviewer dynamic — generates follow-ups based on candidate's response.
-
-**Example Flow:**
+### `answers`
 ```
-Question: Explain Binary Search
-User answers →
-AI follow-ups:
-- What happens if the array contains duplicates?
-- Can binary search work on a rotated array?
-- What is the time complexity?
-```
-
-**Backend Endpoint:**
-```
-POST /ai/followup
-Prompt: "The candidate answered: {answer}
-Generate a realistic technical follow-up question."
+id              integer  PK
+session_id      integer  FK → interview_sessions.id
+question_id     integer  FK → questions.id
+user_answer     text
+semantic_score  float    ← added Phase 5b
+keyword_score   float    ← added Phase 5b
+depth_score     float    ← added Phase 5b
+structure_score float    ← added Phase 5b
+nlp_score       float    (weighted NLP total, 0–100)
+voice_score     float    (0–100)
+face_score      float    (0–100)
+total_score     float    (weighted final, 0–100)
+feedback        text     ← added Phase 5b
 ```
 
----
+### `user_preferences`
+```
+id                        integer   PK
+user_id                   integer   FK → users.id
+preferred_topics          text
+difficulty_level          varchar
+interview_type_preference varchar
+created_at                timestamp
+updated_at                timestamp
+```
+⚠️ This table exists in the DB but has NO SQLAlchemy model file and is never written to by any route.
 
-### 3️⃣ Resume-Based Personalized Questions
-User uploads resume → AI reads it → generates questions specific to their projects/skills.
-
-**Implementation:** PyMuPDF to extract resume text → send to Ollama → generate questions → inject into interview flow.
-
----
-
-### 4️⃣ Job Description Gap Analyser
-User pastes a JD → AI compares it to their analytics → tells them exactly what to practice.
-
-**Implementation:** Ollama extracts skills from JD → cross-reference with `GET /analytics/me` → generate gap report + 7-day prep plan.
-
----
-
-### 5️⃣ Interview Replay System
-Video playback of full interview with transcript timeline, score timeline, and behavior overlays.
+### Dropped Tables (removed Phase 5b)
+- `scores` — was duplicate of answers columns
+- `analytics` — was never written to
+- `conversation_memory` — was duplicate of answers + question FK
 
 ---
 
-## 🎯 Final Vision
+## Real Backend API
 
-| Feature | Status |
-|---------|--------|
-| NLP answer evaluation | ✅ Done |
-| Voice confidence analysis | ✅ Done |
-| Face behavior tracking | ✅ Done |
-| Adaptive difficulty engine | ✅ Done |
-| HR engine via Ollama | ✅ Done |
-| Frontend redesign (Figma) | 🔄 Next |
-| Coding interview + Monaco | 📋 Planned |
-| AI follow-up questions | 📋 Planned |
-| Resume-based questions | 📋 Planned |
-| JD gap analyser | 📋 Planned |
-| Interview replay system | 📋 Planned |
-| PDF session reports | 📋 Planned |
-| Docker + Deployment | 📋 Planned |
+All registered in `main.py`. Verified against actual route files.
 
-**Goal: A realistic AI-powered mock interview platform that feels like a real interview — not a quiz app.**
+| Method | Full Endpoint | Route File | Auth Required |
+|---|---|---|---|
+| POST | `/auth/register` | auth_routes.py | No |
+| POST | `/auth/login` | auth_routes.py | No |
+| GET | `/interview/subjects` | interview_routes.py | Yes |
+| GET | `/interview/topics?subject_id=X` | interview_routes.py | Yes |
+| GET | `/interview/subtopics?topic_id=X` | interview_routes.py | Yes |
+| GET | `/interview/questions` | interview_routes.py | Yes |
+| POST | `/interview/start` | interview_routes.py | Yes |
+| GET | `/interview/question` | interview_routes.py | Yes |
+| POST | `/interview/seed-questions` | interview_routes.py | Yes |
+| POST | `/interview/answer` | answer_routes.py | Yes |
+| GET | `/analytics/me` | analytics_routes.py | Yes |
+| POST | `/api/voice/analyze` | voice_routes.py | No |
+| POST | `/api/vision/analyze` | vision_routes.py | No |
+
+**Exact request/response shapes:**
+
+`POST /auth/login` → `{email, password}` → `{access_token, token_type, user: {id, name, email, branch, year, college, avatar_url}}`
+`POST /auth/register` → `{name, email, password, branch?, year?}` → user object
+`POST /interview/start` → `{interview_type, subject_id, difficulty, topic_id?, subtopic_id?}` → `{session_id, subject_name, topic_name, difficulty, start_time, message}`
+`GET /interview/question` → `?subject_id=X&difficulty=X&session_id=X&topic_id=X&subtopic_id=X` → `{question_id, title, question_text, type, subject_name, topic_name, subtopic_name, difficulty}`
+`POST /interview/answer` → `{session_id, question_id, user_answer, voice_score?, face_score?}` → `{answer_id, session_id, question_id, user_answer, semantic_score, keyword_score, depth_score, structure_score, nlp_score, voice_score, face_score, total_score, feedback, engine}`
+`GET /analytics/me` → `{total_sessions, total_answers, avg_nlp_score, avg_total_score, best_score, strongest_topic, weakest_topic, subject_breakdown, topic_breakdown, recent_sessions, performance}`
+`POST /api/voice/analyze` → multipart `audio` file → `{overall_voice_score, transcript, duration_seconds, feedback, details: {pace, filler_words, confidence, silence, energy}}`
+`POST /api/vision/analyze` → `{image: base64, session_id, question_id}` → `{eye_contact, head_stability, emotion}`
+
+**Backend endpoints NOT yet built (needed for future phases):**
+
+| Endpoint | Phase | Purpose |
+|---|---|---|
+| `PUT /auth/profile` | Phase 6 | Update name, branch, year, college |
+| `PUT /auth/password` | Phase 6 | Change password |
+| `POST /code/run` | Phase 7 | Execute code in sandbox |
+| `POST /ai/followup` | Phase 8 | Generate AI follow-up question |
+| `POST /resume/analyse` | Phase 9 | PDF upload → extract + AI questions |
+| `POST /jd/analyse` | Phase 10 | JD text → gap analysis + prep plan |
+| `GET /interview/sessions` | Phase 11 | List user's past sessions |
+| `GET /interview/sessions/{id}/answers` | Phase 11 | Full Q&A for a session |
+| `GET /reports/session/{id}` | Phase 12 | Generate + download PDF report |
 
 ---
 
-## 🛠️ Backend API Reference
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/auth/login` | `{email, password}` → `{access_token}` |
-| POST | `/auth/register` | `{full_name, email, password, branch, year}` |
-| GET | `/interview/subjects` | List all subjects |
-| GET | `/interview/topics?subject_id=X` | Topics for subject |
-| GET | `/interview/subtopics?topic_id=X` | Subtopics for topic |
-| POST | `/interview/start` | Start session → `{session_id}` |
-| GET | `/interview/question` | Get next question |
-| POST | `/answer/submit` | Submit answer with scores |
-| POST | `/api/voice/analyze` | Analyze audio file |
-| POST | `/api/vision/analyze` | Analyze video frame |
-| GET | `/analytics/me` | User analytics data |
+## Score Formulas (verified against evaluation_service.py)
 
----
-
-## 🏗️ Score Formulas
 ```
 Technical: 70% NLP + 20% Voice + 10% Face
-HR:        40% LLM + 30% Voice + 20% Face + 10% NLP
 
-NLP:   45% semantic + 25% keywords + 20% depth + 10% structure
-Voice: 25% pace + 25% filler + 20% confidence + 15% silence + 15% energy
+HR:        50% NLP(LLM) + 30% Voice + 20% Face
+           (NOTE: CLAUDE.md says 40/30/20/10 — code actually does 50/30/20)
+
+NLP:       45% semantic + 25% keyword + 20% depth + 10% structure
+Voice:     25% pace + 25% filler + 20% confidence + 15% silence + 15% energy
 ```
 
 ---
 
-## 📅 Recommended Build Order
+## Key Files Reference
 
-| Week | Task |
-|------|------|
-| Week 1 | Fix issues + Frontend redesign |
-| Week 2 | Coding interview round (Monaco) |
-| Week 3 | AI follow-up questions |
-| Week 4 | Resume-based questions + JD analyser |
-| Week 5 | Replay system + PDF reports |
-| Week 6 | Docker + Deploy |
+| File | Purpose | Note |
+|---|---|---|
+| `main.py` | FastAPI entry, all routers registered | |
+| `database.py` | PostgreSQL engine + Base | |
+| `ai_engine/nlp_engine.py` | NLP scoring + CONCEPT_MAP (7 subjects) | Returns `overall_score` key (not `nlp_score`) |
+| `ai_engine/hr_engine.py` | Ollama qwen2.5-coder:7b HR evaluation | |
+| `ai_engine/voice_engine.py` | Whisper + librosa + parselmouth | Running on CPU |
+| `ai_engine/vision_engine.py` | MediaPipe FaceMesh 0.10.11 | DO NOT upgrade mediapipe |
+| `services/evaluation_service.py` | Routes hr vs technical, saves full breakdown | |
+| `services/analytics_service.py` | Computes analytics on-the-fly | |
+| `services/interview_service.py` | Adaptive difficulty + no-repeat | |
+| `services/auth_service.py` | Register + login logic | |
+| `schemas/user_schema.py` | UserRegister, UserLogin, UserResponse, TokenResponse | Includes college, avatar_url |
+| `schemas/answer_schema.py` | SubmitAnswerRequest, SubmitAnswerResponse | Includes depth_score |
+| `frontend/src/App.jsx` | All 9 React pages in one file | ~1600 lines |
+| `frontend/src/VoiceRecorder.jsx` | Audio recording + WAV builder + Whisper call | DO NOT modify |
+| `frontend/src/VisionRecorder.jsx` | Camera capture + MediaPipe call | DO NOT modify |
+| `front_idea/` | 6 Figma design PNG screenshots | Reference for UI matching |
+| `MISSING_PAGES_DESIGN.md` | ASCII wireframes for 7 unbuilt pages | Reference for Phase 6+ |
 
 ---
 
-*Last updated: March 2026 | Phase 4 Complete | Ready for Claude Code session*
+## Known Issues
+
+| Issue | Severity | Fix |
+|---|---|---|
+| Whisper runs on CPU (torch.cuda not detecting GPU) | Low — works, just slower | Fix in Phase 13 |
+| Parselmouth pitch occasionally 0 Hz | Low — librosa fallback covers it | No action needed |
+| mediapipe MUST be 0.10.11 on Windows | Constraint | DO NOT upgrade |
+| `user_preferences` table has no SQLAlchemy model file and is never written to | Low | Add model or drop table when needed |
+
+---
+
+## Do NOT
+
+- Upgrade mediapipe beyond 0.10.11
+- Modify `VoiceRecorder.jsx` or `VisionRecorder.jsx`
+- Change multimodal score weights without being asked
+- Add features outside current phase scope
+- Auto-commit or auto-push to git
+
+---
+
+## Full Roadmap
+
+### Phase 6 — Profile Edit + Settings + Onboarding
+
+**Cleanup tasks — COMPLETED**
+- Removed unused service files: `memory_service.py`, `vision_service.py`, `voice_service.py`
+- `UserResponse` schema now includes `college` and `avatar_url`
+- `SubmitAnswerResponse` schema now includes `depth_score`
+- `interview_sessions.status` model default aligned to `"active"`
+
+**ProfilePage** (already in App.jsx, display works, edit needs backend):
+- Add edit form: name, branch, year, college fields with Save button
+- New backend route: `PUT /auth/profile` → update user record
+- New backend route: `PUT /auth/password` → verify current + update hash
+- Change password section with 3 fields + Update button
+- Danger zone: "Delete all session data" with confirmation dialog
+
+**SettingsPage** (new page, App.jsx):
+- Add to sidebar nav + handleNav + App render
+- Camera/mic device selectors from `navigator.mediaDevices.enumerateDevices()`
+- Whisper model preference (tiny/base/small) → localStorage
+- Default difficulty preference → localStorage
+- Privacy toggles → localStorage
+- [Save Settings] button
+
+**OnboardingPage** (new page, App.jsx):
+- Shown once after register: check `localStorage.getItem('onboarding_complete')`
+- 4 steps: Welcome + permissions → Hardware test (5s recording) → Target companies/roles → Weak topics
+- On finish: `localStorage.setItem('onboarding_complete', 'true')` → redirect to dashboard
+- Skip button always visible
+
+---
+
+### Phase 7 — Coding Interview Round
+
+**New DB table:** `coding_problems`
+`id, title, difficulty, description, examples (JSON), constraints, starter_code (JSON by language), test_cases (JSON)`
+
+**New backend route:**
+`POST /code/run` — `{language, code, problem_id, session_id}` → Python subprocess sandbox → `{output, error, runtime_ms, passed_cases}`
+
+**New frontend page:** `CodingInterviewPage`
+- `npm install @monaco-editor/react`
+- Full-screen (no sidebar), same header style as InterviewRoomPage
+- Left: problem statement + examples + hints
+- Right: Monaco Editor + language selector
+- Below editor: test cases (input / expected / actual + pass/fail badge)
+- Bottom bar: [Skip] + [▶ Run Code] + [✓ Submit]
+- After submit: Ollama AI feedback (time complexity, code quality, edge cases)
+
+---
+
+### Phase 8 — AI Follow-up Questions
+
+**New backend route:**
+`POST /ai/followup` — `{question_text, user_answer, session_id}` → Ollama → `{followup_question}`
+
+**InterviewRoomPage change:**
+- After submit answer + show score: if score < 70, fetch and show follow-up question
+- Follow-up answer submitted as a separate answer record
+- Adds 1–2 dynamic turns per question
+
+---
+
+### Phase 9 — Resume-Based Questions
+
+**Install:** `pip install PyMuPDF`
+
+**New backend route:**
+`POST /resume/analyse` — multipart PDF → PyMuPDF extract → Ollama → `{skills, ats_score, suggestions, questions: [5 items]}`
+
+**New frontend page:** `ResumeAnalyserPage`
+- Drag-and-drop PDF upload zone
+- After upload: ATS score ring + skill tags + suggestions list + 5 AI questions
+- [Start Interview with These Questions] → passes custom questions to InterviewRoomPage
+
+---
+
+### Phase 10 — JD Gap Analyser
+
+**New backend route:**
+`POST /jd/analyse` — `{jd_text}` → Ollama extracts skills → cross-reference with `/analytics/me` → `{required_skills, match_scores, missing_skills, prep_plan}`
+
+**New frontend page:** `JDAnalyserPage`
+- Large textarea + [Analyse Gap] button
+- Per-skill progress bars: green ≥70% / amber 40–70% / red <40%
+- 7-day personalised prep plan card
+- [Start Prep] → launches interview with weakest topics pre-selected
+
+---
+
+### Phase 11 — Interview Replay
+
+**New backend routes:**
+`GET /interview/sessions` → list user's sessions with answer count + avg score
+`GET /interview/sessions/{id}/answers` → all Q&A + scores + feedback for a session
+
+**New frontend page:** `ReplayPage`
+- Session selector dropdown (past 10 sessions)
+- Q&A timeline: question card → answer card → score bars → feedback
+- Score trend chart across questions (recharts LineChart)
+- Behaviour summary (avg eye contact, total fillers, avg pace)
+
+---
+
+### Phase 12 — PDF Reports
+
+**New backend route:**
+`GET /reports/session/{id}` → generate PDF (reportlab or weasyprint) → return as file download
+
+PDF contents: session info, full Q&A transcript, per-question score breakdown, AI feedback summary, improvement tips
+
+---
+
+### Phase 13 — Docker + Deploy
+
+- Dockerfile (Python 3.11, all AI deps, CUDA drivers for Whisper GPU)
+- docker-compose.yml (backend + postgres + volumes)
+- Fix `torch.cuda` detection for Whisper GPU acceleration
+- Frontend → Vercel (static build, `npm run build`)
+- Backend → Render or Railway
+- `.env` for `DATABASE_URL`, `JWT_SECRET`, `OLLAMA_URL`
+
+---
+
+## Frontend Design System
+
+```
+bg:      #0B0F1E   page background
+cards:   #0F1629   card background
+border:  rgba(255,255,255,0.07)
+primary: #6366F1   indigo
+success: #22C55E   green
+warning: #F59E0B   amber
+danger:  #EF4444   red
+text:    #F1F5F9   primary
+muted:   #94A3B8   secondary
+faint:   #475569   labels
+font:    Inter (Google Fonts)
+routing: state-based (no React Router)
+charts:  recharts (RadarChart, AreaChart)
+```
+
+---
+
+*Last updated: March 12, 2026 — Phase 6 cleanup complete*
+*Next: ProfilePage edit form (PUT /auth/profile + PUT /auth/password), then SettingsPage, OnboardingPage*

@@ -1,0 +1,36 @@
+# FastAPI & server
+fastapi
+uvicorn[standard]
+python-multipart
+
+# Database
+sqlalchemy
+psycopg2-binary
+
+# Auth
+python-jose[cryptography]
+passlib[bcrypt]
+python-dotenv
+
+# Pydantic
+pydantic[email]
+
+# NLP / AI
+sentence-transformers
+scikit-learn
+numpy
+
+# Voice analysis
+openai-whisper
+torch
+librosa
+soundfile
+praat-parselmouth
+
+# Vision / Face analysis
+opencv-python
+mediapipe==0.10.11
+imageio-ffmpeg
+
+# HTTP
+requests
