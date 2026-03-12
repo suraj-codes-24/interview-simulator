@@ -153,8 +153,17 @@ function SidebarLayout({ active, user, onNav, onLogout, children, showUser }) {
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#0B0F1E" }}>
       <Sidebar active={active} user={user} onNav={onNav} onLogout={onLogout} showUser={showUser} />
-      <div style={{ marginLeft: 220, flex: 1, minHeight: "100vh" }}>
-        {children}
+      <div style={{ marginLeft: 220, flex: 1, minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+        {/* Global branding header */}
+        <div style={{ flexShrink: 0, borderBottom: "1px solid rgba(255,255,255,0.05)", background: "#080C1A", padding: "8px 32px", display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 20, height: 20, background: "#6366F1", borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 11 }}>◈</div>
+          <span style={{ fontWeight: 700, fontSize: 13, color: "#E2E8F0" }}>AI Interview Simulator</span>
+          <span style={{ color: "#1E293B", fontSize: 13 }}>|</span>
+          <span style={{ color: "#334155", fontSize: 12 }}>Practice technical interviews with AI feedback</span>
+        </div>
+        <div style={{ flex: 1 }}>
+          {children}
+        </div>
       </div>
     </div>
   );
@@ -848,15 +857,23 @@ function InterviewRoomPage({ token, user, sessionData, onResult, onBack }) {
 
   async function fetchFollowup(questionText, userAnswer) {
     setFollowupLoading(true);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
     try {
       const r = await fetch(`${API}/ai/followup`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ question_text: questionText, user_answer: userAnswer, session_id: sessionId }),
+        signal: ctrl.signal,
       });
+      clearTimeout(timer);
       const d = await r.json();
       if (r.ok) { setFollowup({ question: d.followup_question }); setFollowupCount(c => c + 1); }
-    } catch { /* silent — follow-up is optional */ }
+    } catch (e) {
+      clearTimeout(timer);
+      if (e.name === "AbortError") setError("Follow-up request timed out. Please try again.");
+      /* else silent — follow-up is optional */
+    }
     setFollowupLoading(false);
   }
 
@@ -960,6 +977,19 @@ function InterviewRoomPage({ token, user, sessionData, onResult, onBack }) {
 
       {/* ── Content (flex 1, no overflow) ─────────────────────────────── */}
       <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap: 10, padding: "10px 24px" }}>
+
+        {/* Progress tracker bar */}
+        <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 10, padding: "6px 14px", background: "rgba(255,255,255,0.03)", borderRadius: 8, border: "1px solid rgba(255,255,255,0.05)" }}>
+          <span style={{ background: "rgba(99,102,241,0.15)", color: "#A5B4FC", fontSize: 11, fontWeight: 700, padding: "2px 10px", borderRadius: 4 }}>
+            Question {questionNum}
+          </span>
+          <span style={{ color: "#334155", fontSize: 11 }}>|</span>
+          <span style={{ color: "#475569", fontSize: 11 }}>Difficulty: <span style={{ color: "#94A3B8", fontWeight: 600 }}>{difficulty || "—"}</span></span>
+          <span style={{ color: "#334155", fontSize: 11 }}>|</span>
+          <span style={{ color: "#475569", fontSize: 11 }}>Type: <span style={{ color: "#94A3B8", fontWeight: 600 }}>{sessionData.interviewType === "hr" ? "HR / Behavioral" : "Technical"}</span></span>
+          <span style={{ color: "#334155", fontSize: 11 }}>|</span>
+          <span style={{ color: "#475569", fontSize: 11 }}>Session: <span style={{ color: "#94A3B8", fontWeight: 600 }}>{subjectName || "—"}</span></span>
+        </div>
 
         {/* Row 1: Two columns (42%) */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, flex: "0 0 42%" }}>
@@ -1199,15 +1229,20 @@ function ResultsPage({ token, user, lastResult, onBack, onRetake }) {
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState("");
 
   async function downloadPDF(sessionId) {
-    if (!sessionId) { alert("No session ID available for this result."); return; }
-    setPdfLoading(true);
+    if (!sessionId) { setPdfError("No session ID available for this result."); return; }
+    setPdfLoading(true); setPdfError("");
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
     try {
       const r = await fetch(`${API}/reports/session/${sessionId}`, {
         headers: { Authorization: `Bearer ${token}` },
+        signal: ctrl.signal,
       });
-      if (!r.ok) { alert("Could not generate PDF."); setPdfLoading(false); return; }
+      clearTimeout(timer);
+      if (!r.ok) { setPdfError("PDF generation failed. Try again."); setPdfLoading(false); return; }
       const blob = await r.blob();
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement("a");
@@ -1215,7 +1250,10 @@ function ResultsPage({ token, user, lastResult, onBack, onRetake }) {
       a.download = `interview_report_${sessionId}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch { alert("Download failed."); }
+    } catch (e) {
+      clearTimeout(timer);
+      setPdfError(e.name === "AbortError" ? "Request timed out. Please try again." : "Download failed. Is the backend running?");
+    }
     setPdfLoading(false);
   }
 
@@ -1274,7 +1312,20 @@ function ResultsPage({ token, user, lastResult, onBack, onRetake }) {
             {/* Score ring */}
             <div className="fade-in" style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 32 }}>
               <CircularScore score={Math.round(score)} size={160} />
-              <p style={{ color: "#94A3B8", fontSize: 14, marginTop: 16, textAlign: "center", maxWidth: 400, lineHeight: 1.6 }}>
+              {/* Performance badge */}
+              {(() => {
+                const s = Math.round(score);
+                const badge = s >= 90 ? { label: "Expert", bg: "rgba(99,102,241,0.15)", color: "#A5B4FC", border: "rgba(99,102,241,0.4)" }
+                  : s >= 75 ? { label: "Strong", bg: "rgba(34,197,94,0.12)", color: "#4ADE80", border: "rgba(34,197,94,0.35)" }
+                  : s >= 60 ? { label: "Improving", bg: "rgba(245,158,11,0.12)", color: "#FCD34D", border: "rgba(245,158,11,0.35)" }
+                  : { label: "Needs Practice", bg: "rgba(239,68,68,0.1)", color: "#F87171", border: "rgba(239,68,68,0.3)" };
+                return (
+                  <div style={{ marginTop: 12, padding: "4px 18px", borderRadius: 20, background: badge.bg, border: `1px solid ${badge.border}`, color: badge.color, fontWeight: 700, fontSize: 13, letterSpacing: "0.04em" }}>
+                    {badge.label}
+                  </div>
+                );
+              })()}
+              <p style={{ color: "#94A3B8", fontSize: 14, marginTop: 12, textAlign: "center", maxWidth: 400, lineHeight: 1.6 }}>
                 {score >= 80 ? "Impressive performance! Your technical answers were highly structured, showing strong domain knowledge." :
                   score >= 60 ? "Good performance! Keep practicing to strengthen your weak areas." :
                   "Keep going! Consistent practice will improve your scores significantly."}
@@ -1354,10 +1405,15 @@ function ResultsPage({ token, user, lastResult, onBack, onRetake }) {
               </button>
               {lastResult?.session_id && (
                 <button onClick={() => downloadPDF(lastResult.session_id)} disabled={pdfLoading} style={{ background: pdfLoading ? "#334155" : "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.3)", color: "#A5B4FC", fontWeight: 600, padding: "12px 28px", borderRadius: 10, fontSize: 14, display: "flex", alignItems: "center", gap: 8, cursor: pdfLoading ? "default" : "pointer" }}>
-                  {pdfLoading ? <><span className="spin">⟳</span> Generating...</> : "⬇ Download PDF"}
+                  {pdfLoading ? <><span className="spin">⟳</span> Generating report...</> : "⬇ Download PDF Report"}
                 </button>
               )}
             </div>
+            {pdfError && (
+              <div style={{ marginTop: 8, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 8, padding: "8px 14px", color: "#F87171", fontSize: 13 }}>
+                ⚠ {pdfError}
+              </div>
+            )}
           </>
         )}
       </div>
@@ -1428,6 +1484,17 @@ function AnalyticsPage({ token, user, onNav, onLogout }) {
 
         {loading ? (
           <div style={{ textAlign: "center", padding: 80 }}><Spinner /></div>
+        ) : (!analytics || analytics.total_answers === 0) ? (
+          <div style={{ textAlign: "center", padding: "80px 24px" }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>📊</div>
+            <h3 style={{ color: "#F1F5F9", fontWeight: 700, fontSize: 20, marginBottom: 8 }}>No data yet</h3>
+            <p style={{ color: "#64748B", fontSize: 14, marginBottom: 24, maxWidth: 360, margin: "0 auto 24px" }}>
+              Complete your first interview to see performance analytics, skill breakdowns, and progress charts.
+            </p>
+            <button onClick={() => onNav("interview")} style={{ background: "#6366F1", color: "#fff", fontWeight: 600, padding: "10px 24px", borderRadius: 8, fontSize: 14, border: "none", cursor: "pointer" }}>
+              Start Your First Interview
+            </button>
+          </div>
         ) : (
           <>
             {/* Stats */}
@@ -2467,16 +2534,24 @@ function ResumeAnalyserPage({ token, user, onNav, onLogout }) {
     setError(""); setUploading(true); setResult(null);
     const fd = new FormData();
     fd.append("file", file);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
     try {
       const r = await fetch(`${API}/resume/analyse`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: fd,
+        signal: ctrl.signal,
       });
+      clearTimeout(timer);
       const d = await r.json();
-      if (!r.ok) { setError(d.detail || "Analysis failed."); }
+      if (!r.ok) { setError(d.detail || "Resume analysis failed. Please try again."); }
       else { setResult(d); }
-    } catch { setError("Could not reach server. Is the backend running?"); }
+    } catch (e) {
+      clearTimeout(timer);
+      if (e.name === "AbortError") setError("Request timed out. Please try again.");
+      else setError("Could not reach server. Is the backend running?");
+    }
     setUploading(false);
   }
 
@@ -2518,8 +2593,8 @@ function ResumeAnalyserPage({ token, user, onNav, onLogout }) {
             {uploading ? (
               <>
                 <span className="spin" style={{ fontSize: 20, color: "#6366F1" }}>⟳</span>
-                <p style={{ color: "#6366F1", marginTop: 10, fontSize: 14, fontWeight: 600 }}>Analysing with AI...</p>
-                <p style={{ color: "#475569", fontSize: 12 }}>This may take 20–60 seconds</p>
+                <p style={{ color: "#6366F1", marginTop: 10, fontSize: 14, fontWeight: 600 }}>Analyzing resume...</p>
+                <p style={{ color: "#475569", fontSize: 12 }}>Extracting skills and generating questions — 20–60s</p>
               </>
             ) : (
               <>
@@ -2613,16 +2688,24 @@ function JDAnalyserPage({ token, user, onNav, onLogout }) {
       setError("Please paste a job description (at least 20 characters)."); return;
     }
     setError(""); setAnalysing(true); setResult(null);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
     try {
       const r = await fetch(`${API}/jd/analyse`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ jd_text: jdText }),
+        signal: ctrl.signal,
       });
+      clearTimeout(timer);
       const d = await r.json();
-      if (!r.ok) { setError(d.detail || "Analysis failed."); }
+      if (!r.ok) { setError(d.detail || "Job description analysis failed."); }
       else { setResult(d); }
-    } catch { setError("Could not reach server. Is the backend running?"); }
+    } catch (e) {
+      clearTimeout(timer);
+      if (e.name === "AbortError") setError("Request timed out. Please try again.");
+      else setError("Could not reach server. Is Ollama running? Try: ollama serve");
+    }
     setAnalysing(false);
   }
 
@@ -2683,7 +2766,7 @@ function JDAnalyserPage({ token, user, onNav, onLogout }) {
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
               }}
             >
-              {analysing ? <><span className="spin">⟳</span> Analysing with AI...</> : "🎯 Analyse Gap"}
+              {analysing ? <><span className="spin">⟳</span> Extracting required skills...</> : "🎯 Analyse Gap"}
             </button>
             {error && <div style={{ marginTop: 10, color: "#EF4444", fontSize: 13 }}>⚠ {error}</div>}
           </div>
@@ -2782,12 +2865,16 @@ function ReplayPage({ token, user, onNav, onLogout }) {
 
   async function downloadPDF() {
     if (!selectedId) return;
-    setPdfLoading(true);
+    setPdfLoading(true); setError("");
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
     try {
       const r = await fetch(`${API}/reports/session/${selectedId}`, {
         headers: { Authorization: `Bearer ${token}` },
+        signal: ctrl.signal,
       });
-      if (!r.ok) { alert("Could not generate PDF."); setPdfLoading(false); return; }
+      clearTimeout(timer);
+      if (!r.ok) { setError("PDF generation failed. Try again."); setPdfLoading(false); return; }
       const blob = await r.blob();
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement("a");
@@ -2795,7 +2882,10 @@ function ReplayPage({ token, user, onNav, onLogout }) {
       a.download = `interview_report_${selectedId}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch { alert("Download failed."); }
+    } catch (e) {
+      clearTimeout(timer);
+      setError(e.name === "AbortError" ? "Request timed out. Please try again." : "PDF download failed. Is the backend running?");
+    }
     setPdfLoading(false);
   }
 
@@ -2825,21 +2915,30 @@ function ReplayPage({ token, user, onNav, onLogout }) {
   }
 
   async function fetchCoaching(ans) {
+    if (coaching) return; // cache: don't re-fetch if already loaded
     setLoadingCoach(true);
     const payload = ans.map(a => ({
       question: a.question_text,
       answer:   a.user_answer,
       score:    a.total_score,
     }));
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
     try {
       const r = await fetch(`${API}/ai/session-feedback`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ answers: payload }),
+        signal: ctrl.signal,
       });
+      clearTimeout(timer);
       const d = await r.json();
       if (r.ok) setCoaching(d);
-    } catch { /* silent — coaching is optional */ }
+    } catch (e) {
+      clearTimeout(timer);
+      if (e.name === "AbortError") setError("Coaching summary timed out. Please try again.");
+      /* else silent — coaching is optional */
+    }
     setLoadingCoach(false);
   }
 
@@ -2890,7 +2989,16 @@ function ReplayPage({ token, user, onNav, onLogout }) {
           </select>
         )}
         {sessions.length === 0 && !loadingSessions && (
-          <span style={{ color: "#475569", fontSize: 13 }}>No sessions found — complete an interview first.</span>
+          <div style={{ textAlign: "center", padding: "48px 24px" }}>
+            <div style={{ fontSize: 42, marginBottom: 14 }}>🎙</div>
+            <h3 style={{ color: "#F1F5F9", fontWeight: 700, fontSize: 18, marginBottom: 8 }}>No interviews yet</h3>
+            <p style={{ color: "#64748B", fontSize: 14, marginBottom: 20, maxWidth: 320, margin: "0 auto 20px" }}>
+              You haven't completed any interviews yet. Complete one to unlock the replay and coaching features.
+            </p>
+            <button onClick={() => onNav("interview")} style={{ background: "#6366F1", color: "#fff", fontWeight: 600, padding: "9px 22px", borderRadius: 8, fontSize: 13, border: "none", cursor: "pointer" }}>
+              Start Interview
+            </button>
+          </div>
         )}
       </div>
 
@@ -2899,7 +3007,7 @@ function ReplayPage({ token, user, onNav, onLogout }) {
       {loadingAnswers && (
         <div style={{ textAlign: "center", padding: 40, color: "#6366F1" }}>
           <span className="spin" style={{ fontSize: 22 }}>⟳</span>
-          <p style={{ marginTop: 10, color: "#94A3B8" }}>Loading session...</p>
+          <p style={{ marginTop: 10, color: "#94A3B8" }}>Loading session replay...</p>
         </div>
       )}
 
