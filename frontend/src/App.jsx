@@ -85,6 +85,7 @@ function Sidebar({ active, user, onNav, onLogout, showUser }) {
     { id: "coding",    label: "Coding",    icon: "💻" },
     { id: "analytics", label: "Analytics", icon: "▦" },
     { id: "resume",    label: "Resume AI", icon: "📄" },
+    { id: "jd",        label: "JD Analyzer", icon: "🎯" },
     { id: "profile",   label: "Profile",   icon: "○" },
     { id: "settings",  label: "Settings",  icon: "⚙" },
   ];
@@ -2570,6 +2571,173 @@ function ResumeAnalyserPage({ token, user, onNav, onLogout }) {
   );
 }
 
+// ─── JD Analyser Page ────────────────────────────────────────────────────────
+function JDAnalyserPage({ token, user, onNav, onLogout }) {
+  const [jdText, setJdText]     = useState("");
+  const [analysing, setAnalysing] = useState(false);
+  const [result, setResult]     = useState(null);
+  const [error, setError]       = useState("");
+
+  const card = { background: "#0F1629", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12 };
+
+  async function analyseJD() {
+    if (!jdText.trim() || jdText.trim().length < 20) {
+      setError("Please paste a job description (at least 20 characters)."); return;
+    }
+    setError(""); setAnalysing(true); setResult(null);
+    try {
+      const r = await fetch(`${API}/jd/analyse`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ jd_text: jdText }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setError(d.detail || "Analysis failed."); }
+      else { setResult(d); }
+    } catch { setError("Could not reach server. Is the backend running?"); }
+    setAnalysing(false);
+  }
+
+  function scoreColor(score) {
+    if (score === null || score === undefined) return "#EF4444";
+    if (score >= 70) return "#22C55E";
+    if (score >= 45) return "#F59E0B";
+    return "#EF4444";
+  }
+
+  function scoreLabel(score) {
+    if (score === null || score === undefined) return "Not practiced";
+    if (score >= 70) return `${Math.round(score)}%`;
+    if (score >= 45) return `${Math.round(score)}% — Needs work`;
+    return `${Math.round(score)}% — Weak`;
+  }
+
+  // Calculate overall match % from match_scores
+  const overallMatch = result
+    ? (() => {
+        const scores = Object.values(result.match_scores).filter(s => s !== null && s !== undefined);
+        if (!scores.length) return 0;
+        return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+      })()
+    : null;
+
+  return (
+    <SidebarLayout active="jd" user={user} onNav={onNav} onLogout={onLogout}>
+      {/* Header */}
+      <div style={{ marginBottom: 20 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: "#fff", margin: 0 }}>JD Gap Analyser</h1>
+        <p style={{ color: "#64748B", fontSize: 13, margin: "4px 0 0" }}>Paste a job description — see how your skills match up and get a 7-day prep plan</p>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: result ? "1fr 1.4fr" : "1fr", gap: 16, alignItems: "start" }}>
+        {/* Input panel */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ ...card, padding: 20 }}>
+            <div style={{ fontSize: 11, color: "#94A3B8", fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Paste Job Description</div>
+            <textarea
+              value={jdText}
+              onChange={e => setJdText(e.target.value)}
+              placeholder={"e.g.\nWe are looking for a Software Engineer with strong knowledge of:\n- Data Structures & Algorithms\n- System Design\n- Python or Java\n- Distributed Systems..."}
+              style={{
+                width: "100%", height: 280, background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8,
+                color: "#F1F5F9", fontSize: 13, lineHeight: 1.6, padding: 14,
+                fontFamily: "Inter, sans-serif", resize: "vertical", outline: "none",
+              }}
+            />
+            <button
+              onClick={analyseJD}
+              disabled={analysing}
+              style={{
+                marginTop: 12, width: "100%", background: analysing ? "#4B5563" : "#6366F1",
+                color: "#fff", fontWeight: 700, fontSize: 14, padding: "12px",
+                borderRadius: 8, border: "none", cursor: analysing ? "default" : "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              }}
+            >
+              {analysing ? <><span className="spin">⟳</span> Analysing with AI...</> : "🎯 Analyse Gap"}
+            </button>
+            {error && <div style={{ marginTop: 10, color: "#EF4444", fontSize: 13 }}>⚠ {error}</div>}
+          </div>
+
+          {/* Overall match badge */}
+          {result && overallMatch !== null && (
+            <div className="fade-in" style={{ ...card, padding: 20, textAlign: "center" }}>
+              <div style={{ fontSize: 11, color: "#64748B", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Overall Match</div>
+              <div style={{ fontSize: 52, fontWeight: 800, color: scoreColor(overallMatch), lineHeight: 1 }}>{overallMatch}%</div>
+              <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>
+                {overallMatch >= 70 ? "Strong fit 🎉" : overallMatch >= 45 ? "Good with prep 📚" : "Needs focused study 💪"}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Results panel */}
+        {result && (
+          <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {/* Required skills + match bars */}
+            <div style={{ ...card, padding: 20 }}>
+              <div style={{ fontSize: 11, color: "#94A3B8", fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, marginBottom: 14 }}>Skill Match Analysis</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {Object.entries(result.match_scores).map(([skill, score]) => (
+                  <div key={skill}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, fontSize: 12 }}>
+                      <span style={{ color: "#CBD5E1", fontWeight: 500 }}>{skill}</span>
+                      <span style={{ color: scoreColor(score), fontWeight: 600 }}>{scoreLabel(score)}</span>
+                    </div>
+                    <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 99, height: 6, overflow: "hidden" }}>
+                      <div style={{
+                        width: `${score ?? 0}%`, height: "100%",
+                        background: scoreColor(score), borderRadius: 99,
+                        transition: "width 0.6s ease",
+                      }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Missing skills */}
+            {result.missing_skills.length > 0 && (
+              <div style={{ ...card, padding: 20, border: "1px solid rgba(239,68,68,0.2)" }}>
+                <div style={{ fontSize: 11, color: "#EF4444", fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Skills to Improve</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {result.missing_skills.map((s, i) => (
+                    <span key={i} style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", color: "#FCA5A5", fontSize: 12, fontWeight: 500, padding: "4px 12px", borderRadius: 99 }}>
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 7-day prep plan */}
+            <div style={{ ...card, padding: 20 }}>
+              <div style={{ fontSize: 11, color: "#94A3B8", fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, marginBottom: 14 }}>📅 7-Day Prep Plan</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {result.prep_plan.map((task, i) => (
+                  <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "8px 12px", background: "rgba(255,255,255,0.03)", borderRadius: 8 }}>
+                    <div style={{ width: 24, height: 24, borderRadius: "50%", background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#818CF8", flexShrink: 0 }}>
+                      {i + 1}
+                    </div>
+                    <span style={{ color: "#CBD5E1", fontSize: 13, lineHeight: 1.5 }}>{task}</span>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => onNav("interview")}
+                style={{ marginTop: 14, width: "100%", background: "#6366F1", color: "#fff", fontWeight: 700, fontSize: 14, padding: "12px", borderRadius: 8, border: "none", cursor: "pointer" }}
+              >
+                Start Prep Interview →
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </SidebarLayout>
+  );
+}
+
 export default function App() {
   const [page, setPage] = useState("landing");
   const [token, setToken] = useState(() => localStorage.getItem("token") || "");
@@ -2604,6 +2772,7 @@ export default function App() {
     else if (dest === "settings") setPage("settings");
     else if (dest === "coding")   setPage("coding");
     else if (dest === "resume")   setPage("resume");
+    else if (dest === "jd")       setPage("jd");
   }
 
   function handleUpdateUser(updatedUser) {
@@ -2629,6 +2798,7 @@ export default function App() {
       {page === "settings" && <SettingsPage {...sidebarProps} />}
       {page === "coding"   && <CodingInterviewPage token={token} {...sidebarProps} onResult={r => { setLastResult(r); setPage("result"); }} />}
       {page === "resume"   && <ResumeAnalyserPage token={token} {...sidebarProps} />}
+      {page === "jd"       && <JDAnalyserPage token={token} {...sidebarProps} />}
     </>
   );
 }

@@ -13,6 +13,7 @@ from routes.vision_routes import router as vision_router
 from routes.code_routes import router as code_router
 from routes.ai_routes import router as ai_router
 from routes.resume_routes import router as resume_router
+from routes.jd_routes import router as jd_router
 
 from database import engine, Base
 
@@ -49,6 +50,7 @@ app.include_router(vision_router)
 app.include_router(code_router)
 app.include_router(ai_router, prefix="/ai")
 app.include_router(resume_router)
+app.include_router(jd_router)
 
 @app.get("/")
 def root():
