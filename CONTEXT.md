@@ -45,6 +45,7 @@ npm run dev
 | Phase 5b | DB redesign: dropped 3 dead tables, added full NLP breakdown columns to answers, added college/avatar_url/created_at to users |
 | Phase 5c | Interview Room: no-scroll 100vh layout, inline audio recording, mic button in bottom bar |
 | Phase 6 | Profile edit form (PUT /auth/profile + PUT /auth/password), SettingsPage (localStorage), OnboardingPage (4-step wizard) |
+| Phase 7 | Coding Interview: CodingInterviewPage + Monaco Editor + POST /code/run (sandboxed Python) + Run/Submit flow |
 
 ---
 
@@ -64,16 +65,16 @@ All pages live in `frontend/src/App.jsx` (~1600 lines). State-based routing (no 
 | `ProfilePage` | Yes — "Profile" | `profile` | Complete — edit form + change password connected to API |
 | `SettingsPage` | Yes — "Settings" | `settings` | Complete — hardware/AI/privacy toggles, all localStorage |
 | `OnboardingPage` | No (post-register, once) | `onboarding` | Complete — 4-step wizard, shown once after first login |
+| `CodingInterviewPage` | Yes — "Coding" | `coding` | Complete — Monaco Editor, Run Code, Submit, results panel |
 
 **Page navigation flow:**
 `landing` → `login` → `onboarding` (first time) or `dashboard` (returning) → `subject` → `interview` → `result`
-Sidebar nav: `dashboard` ↔ `interview` ↔ `analytics` ↔ `profile` ↔ `settings`
+Sidebar nav: `dashboard` ↔ `interview` ↔ `coding` ↔ `analytics` ↔ `profile` ↔ `settings`
 
-**Pages NOT yet built (all need to be added to App.jsx):**
+**Pages NOT yet built:**
 
 | Page | Page State | Priority |
 |---|---|---|
-| CodingInterviewPage | `coding` | Phase 7 |
 | ResumeAnalyserPage | `resume` | Phase 9 |
 | JDAnalyserPage | `jd` | Phase 10 |
 | ReplayPage | `replay` | Phase 11 |
@@ -229,9 +230,6 @@ All registered in `main.py`. Verified against actual route files.
 
 | Endpoint | Phase | Purpose |
 |---|---|---|
-| `PUT /auth/profile` | Phase 6 | Update name, branch, year, college |
-| `PUT /auth/password` | Phase 6 | Change password |
-| `POST /code/run` | Phase 7 | Execute code in sandbox |
 | `POST /ai/followup` | Phase 8 | Generate AI follow-up question |
 | `POST /resume/analyse` | Phase 9 | PDF upload → extract + AI questions |
 | `POST /jd/analyse` | Phase 10 | JD text → gap analysis + prep plan |
@@ -317,22 +315,14 @@ Voice:     25% pace + 25% filler + 20% confidence + 15% silence + 15% energy
 
 ---
 
-### Phase 7 — Coding Interview Round
+### Phase 7 — Coding Interview Round — COMPLETED
 
-**New DB table:** `coding_problems`
-`id, title, difficulty, description, examples (JSON), constraints, starter_code (JSON by language), test_cases (JSON)`
-
-**New backend route:**
-`POST /code/run` — `{language, code, problem_id, session_id}` → Python subprocess sandbox → `{output, error, runtime_ms, passed_cases}`
-
-**New frontend page:** `CodingInterviewPage`
-- `npm install @monaco-editor/react`
-- Full-screen (no sidebar), same header style as InterviewRoomPage
-- Left: problem statement + examples + hints
-- Right: Monaco Editor + language selector
-- Below editor: test cases (input / expected / actual + pass/fail badge)
-- Bottom bar: [Skip] + [▶ Run Code] + [✓ Submit]
-- After submit: Ollama AI feedback (time complexity, code quality, edge cases)
+**What was built:**
+- `schemas/code_schema.py` — CodeRunRequest, TestCaseResult, CodeRunResponse
+- `services/code_service.py` — sandboxed subprocess execution, safety blocklist (no os/sys/subprocess/eval/exec), 5s timeout, JSON output comparison, Two Sum problem with 3 test cases hardcoded
+- `routes/code_routes.py` — `POST /code/run` (Python only, C++/Java planned)
+- `CodingInterviewPage` — Monaco Editor (`@monaco-editor/react@4.7.0`), language selector (Python/C++/Java) with starter code, 30-min timer, Run Code → results table, Submit → score preview → ResultsPage
+- Sidebar: "Coding" nav item added
 
 ---
 
@@ -429,5 +419,5 @@ charts:  recharts (RadarChart, AreaChart)
 
 ---
 
-*Last updated: March 12, 2026 — Phase 6 complete*
-*Next: Phase 7 — Coding Interview Round (Monaco Editor + POST /code/run + coding_problems DB table)*
+*Last updated: March 12, 2026 — Phase 7 complete*
+*Next: Phase 8 — AI Follow-up Questions (POST /ai/followup via Ollama, InterviewRoomPage integration)*
