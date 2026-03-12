@@ -83,6 +83,7 @@ function Sidebar({ active, user, onNav, onLogout, showUser }) {
     { id: "interview", label: "Interview", icon: "◉" },
     { id: "analytics", label: "Analytics", icon: "▦" },
     { id: "profile",   label: "Profile",   icon: "○" },
+    { id: "settings",  label: "Settings",  icon: "⚙" },
   ];
   return (
     <div style={{
@@ -1460,54 +1461,144 @@ function AnalyticsPage({ token, user, onNav, onLogout }) {
 }
 
 // ─── Profile Page ─────────────────────────────────────────────────────────────
-function ProfilePage({ token, user, onNav, onLogout }) {
+function ProfilePage({ token, user, onNav, onLogout, onUpdateUser }) {
   const [analytics, setAnalytics] = useState(null);
+
+  // Edit form state — pre-filled from user object
+  const [name, setName]       = useState(user?.name || "");
+  const [branch, setBranch]   = useState(user?.branch || "");
+  const [year, setYear]       = useState(user?.year || "");
+  const [college, setCollege] = useState(user?.college || "");
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMsg, setProfileMsg]       = useState("");
+  const [profileError, setProfileError]   = useState("");
+
+  // Password state
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword]         = useState("");
+  const [pwSaving, setPwSaving]   = useState(false);
+  const [pwMsg, setPwMsg]         = useState("");
+  const [pwError, setPwError]     = useState("");
 
   useEffect(() => {
     fetch(`${API}/analytics/me`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json()).then(d => setAnalytics(d)).catch(() => {});
   }, []);
 
-  const fields = [
-    { label: "Full Name", value: user?.name || "—" },
-    { label: "Email", value: user?.email || "—" },
-    { label: "Branch", value: user?.branch || "—" },
-    { label: "Year", value: user?.year ? `Year ${user.year}` : "—" },
-  ];
+  async function saveProfile() {
+    setProfileSaving(true); setProfileMsg(""); setProfileError("");
+    try {
+      const r = await fetch(`${API}/auth/profile`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name, branch, year: year ? parseInt(year) : null, college }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setProfileError(d.detail || "Update failed"); }
+      else { onUpdateUser(d); setProfileMsg("Profile saved successfully."); }
+    } catch { setProfileError("Server error. Please try again."); }
+    setProfileSaving(false);
+  }
+
+  async function changePassword() {
+    if (!currentPassword || !newPassword) { setPwError("Both fields are required."); return; }
+    if (newPassword.length < 6) { setPwError("New password must be at least 6 characters."); return; }
+    setPwSaving(true); setPwMsg(""); setPwError("");
+    try {
+      const r = await fetch(`${API}/auth/password`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setPwError(d.detail || "Password change failed"); }
+      else { setPwMsg("Password updated successfully."); setCurrentPassword(""); setNewPassword(""); }
+    } catch { setPwError("Server error. Please try again."); }
+    setPwSaving(false);
+  }
+
+  const inputStyle = { width: "100%", background: "#1E293B", border: "1px solid #334155", borderRadius: 8, padding: "11px 14px", color: "#F1F5F9", fontSize: 14 };
+  const labelStyle = { fontSize: 13, color: "#94A3B8", marginBottom: 6, display: "block" };
 
   return (
     <SidebarLayout active="profile" user={user} onNav={onNav} onLogout={onLogout} showUser>
       <div style={{ padding: "32px 40px", maxWidth: 700 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, color: "#fff", marginBottom: 4 }}>Profile</h1>
-        <p style={{ color: "#94A3B8", fontSize: 14, marginBottom: 32 }}>Your account information and performance summary.</p>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
+          <div>
+            <h1 style={{ fontSize: 24, fontWeight: 700, color: "#fff", marginBottom: 4 }}>Profile Settings</h1>
+            <p style={{ color: "#94A3B8", fontSize: 14 }}>Update your account information and password.</p>
+          </div>
+          <button onClick={saveProfile} disabled={profileSaving} style={{ background: "#6366F1", color: "#fff", fontWeight: 600, padding: "10px 22px", borderRadius: 8, fontSize: 14, opacity: profileSaving ? 0.7 : 1 }}>
+            {profileSaving ? <Spinner /> : "Save Changes"}
+          </button>
+        </div>
 
-        {/* Avatar + name */}
-        <div style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 32, background: "#0F1629", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 24 }}>
+        {/* Avatar card */}
+        <div style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 24, background: "#0F1629", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 24 }}>
           <div style={{ width: 72, height: 72, borderRadius: "50%", background: "#6366F1", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 28, flexShrink: 0 }}>
-            {(user?.name || "U")[0].toUpperCase()}
+            {(name || user?.name || "U")[0].toUpperCase()}
           </div>
           <div>
-            <div style={{ color: "#fff", fontWeight: 700, fontSize: 20 }}>{user?.name || "—"}</div>
+            <div style={{ color: "#fff", fontWeight: 700, fontSize: 20 }}>{name || user?.name || "—"}</div>
             <div style={{ color: "#94A3B8", fontSize: 14, marginTop: 2 }}>{user?.email || "—"}</div>
             <div style={{ marginTop: 8 }}>
               <span style={{ background: "rgba(99,102,241,0.15)", color: "#A5B4FC", fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 6 }}>
-                {user?.branch || "Student"} • Year {user?.year || "—"}
+                {branch || user?.branch || "Student"} • Year {year || user?.year || "—"}
               </span>
             </div>
           </div>
         </div>
 
-        {/* Account details */}
+        {/* Personal Info form */}
         <div style={{ background: "#0F1629", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 24, marginBottom: 20 }}>
-          <h3 style={{ color: "#fff", fontWeight: 600, fontSize: 15, marginBottom: 20 }}>Account Details</h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-            {fields.map((f, i) => (
-              <div key={f.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "13px 0", borderBottom: i < fields.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
-                <span style={{ color: "#64748B", fontSize: 13 }}>{f.label}</span>
-                <span style={{ color: "#F1F5F9", fontSize: 14, fontWeight: 500 }}>{f.value}</span>
-              </div>
-            ))}
+          <h3 style={{ color: "#fff", fontWeight: 600, fontSize: 15, marginBottom: 20 }}>Personal Information</h3>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div>
+              <label style={labelStyle}>Full Name</label>
+              <input value={name} onChange={e => setName(e.target.value)} placeholder="Your full name" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Email</label>
+              <input value={user?.email || ""} disabled style={{ ...inputStyle, color: "#64748B", cursor: "not-allowed" }} />
+            </div>
+            <div>
+              <label style={labelStyle}>Branch</label>
+              <input value={branch} onChange={e => setBranch(e.target.value)} placeholder="e.g. CSE" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Year</label>
+              <select value={year} onChange={e => setYear(e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
+                <option value="">Select year</option>
+                {[1, 2, 3, 4].map(y => <option key={y} value={y}>Year {y}</option>)}
+              </select>
+            </div>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={labelStyle}>College</label>
+              <input value={college} onChange={e => setCollege(e.target.value)} placeholder="e.g. PSIT Kanpur" style={inputStyle} />
+            </div>
           </div>
+          {profileMsg   && <div style={{ marginTop: 14, color: "#22C55E", fontSize: 13 }}>✓ {profileMsg}</div>}
+          {profileError && <div style={{ marginTop: 14, color: "#F87171", fontSize: 13 }}>✗ {profileError}</div>}
+        </div>
+
+        {/* Change Password */}
+        <div style={{ background: "#0F1629", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 24, marginBottom: 20 }}>
+          <h3 style={{ color: "#fff", fontWeight: 600, fontSize: 15, marginBottom: 20 }}>Change Password</h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div>
+              <label style={labelStyle}>Current Password</label>
+              <input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} placeholder="••••••••" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>New Password</label>
+              <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="••••••••" style={inputStyle} />
+            </div>
+          </div>
+          {pwMsg   && <div style={{ marginTop: 14, color: "#22C55E", fontSize: 13 }}>✓ {pwMsg}</div>}
+          {pwError && <div style={{ marginTop: 14, color: "#F87171", fontSize: 13 }}>✗ {pwError}</div>}
+          <button onClick={changePassword} disabled={pwSaving} style={{ marginTop: 16, background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.3)", color: "#A5B4FC", fontWeight: 600, padding: "10px 20px", borderRadius: 8, fontSize: 14, opacity: pwSaving ? 0.7 : 1 }}>
+            {pwSaving ? <Spinner /> : "Update Password"}
+          </button>
         </div>
 
         {/* Performance summary */}
@@ -1517,7 +1608,7 @@ function ProfilePage({ token, user, onNav, onLogout }) {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
               {[
                 { label: "Sessions", value: analytics.total_sessions, color: "#6366F1" },
-                { label: "Avg Score", value: `${analytics.avg_nlp_score}%`, color: "#22C55E" },
+                { label: "Avg Score", value: `${analytics.avg_total_score}%`, color: "#22C55E" },
                 { label: "Best Score", value: `${analytics.best_score}%`, color: "#F59E0B" },
               ].map(s => (
                 <div key={s.label} style={{ background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: "14px 16px", textAlign: "center" }}>
@@ -1541,11 +1632,350 @@ function ProfilePage({ token, user, onNav, onLogout }) {
           </div>
         )}
 
-        <button onClick={() => { onLogout(); }} style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#F87171", padding: "11px 24px", borderRadius: 8, fontSize: 14, fontWeight: 500 }}>
+        <button onClick={onLogout} style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#F87171", padding: "11px 24px", borderRadius: 8, fontSize: 14, fontWeight: 500 }}>
           Sign Out
         </button>
       </div>
     </SidebarLayout>
+  );
+}
+
+// ─── Settings Page ─────────────────────────────────────────────────────────────
+function SettingsPage({ user, onNav, onLogout }) {
+  // Load saved values from localStorage on mount
+  const [cameras,   setCameras]   = useState([]);
+  const [mics,      setMics]      = useState([]);
+  const [camera,    setCamera]    = useState(() => localStorage.getItem("selected_camera")    || "");
+  const [mic,       setMic]       = useState(() => localStorage.getItem("selected_microphone") || "");
+  const [whisper,   setWhisper]   = useState(() => localStorage.getItem("whisper_model")      || "base");
+  const [difficulty, setDifficulty] = useState(() => localStorage.getItem("default_difficulty") || "intermediate");
+  const [voiceOn,   setVoiceOn]   = useState(() => localStorage.getItem("enable_voice_analysis")  !== "false");
+  const [cameraOn,  setCameraOn]  = useState(() => localStorage.getItem("enable_camera_analysis") !== "false");
+  const [saved,     setSaved]     = useState(false);
+
+  useEffect(() => {
+    if (!navigator.mediaDevices) return;
+    navigator.mediaDevices.enumerateDevices().then(devices => {
+      setCameras(devices.filter(d => d.kind === "videoinput"));
+      setMics(devices.filter(d => d.kind === "audioinput"));
+    }).catch(() => {});
+  }, []);
+
+  function saveSettings() {
+    localStorage.setItem("selected_camera",        camera);
+    localStorage.setItem("selected_microphone",    mic);
+    localStorage.setItem("whisper_model",          whisper);
+    localStorage.setItem("default_difficulty",     difficulty);
+    localStorage.setItem("enable_voice_analysis",  String(voiceOn));
+    localStorage.setItem("enable_camera_analysis", String(cameraOn));
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+  }
+
+  const inputStyle = { width: "100%", background: "#1E293B", border: "1px solid #334155", borderRadius: 8, padding: "10px 14px", color: "#F1F5F9", fontSize: 14, cursor: "pointer" };
+  const labelStyle = { fontSize: 13, color: "#94A3B8", marginBottom: 6, display: "block" };
+
+  function Toggle({ on, onToggle }) {
+    return (
+      <div onClick={onToggle} style={{ width: 44, height: 24, borderRadius: 99, background: on ? "#6366F1" : "#334155", position: "relative", cursor: "pointer", flexShrink: 0, transition: "background 0.2s" }}>
+        <div style={{ position: "absolute", top: 3, left: on ? 23 : 3, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
+      </div>
+    );
+  }
+
+  return (
+    <SidebarLayout active="settings" user={user} onNav={onNav} onLogout={onLogout} showUser>
+      <div style={{ padding: "32px 40px", maxWidth: 680 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
+          <div>
+            <h1 style={{ fontSize: 24, fontWeight: 700, color: "#fff", marginBottom: 4 }}>Settings</h1>
+            <p style={{ color: "#94A3B8", fontSize: 14 }}>Configure your interview preferences and hardware.</p>
+          </div>
+          <button onClick={saveSettings} style={{ background: "#6366F1", color: "#fff", fontWeight: 600, padding: "10px 22px", borderRadius: 8, fontSize: 14 }}>
+            Save Settings
+          </button>
+        </div>
+
+        {saved && (
+          <div style={{ marginBottom: 20, background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.25)", borderRadius: 10, padding: "12px 16px", color: "#22C55E", fontSize: 14 }}>
+            ✓ Settings saved successfully.
+          </div>
+        )}
+
+        {/* Hardware Settings */}
+        <div style={{ background: "#0F1629", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 24, marginBottom: 20 }}>
+          <h3 style={{ color: "#fff", fontWeight: 600, fontSize: 15, marginBottom: 20 }}>Hardware Settings</h3>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div>
+              <label style={labelStyle}>Camera Device</label>
+              <select value={camera} onChange={e => setCamera(e.target.value)} style={inputStyle}>
+                <option value="">Default Camera</option>
+                {cameras.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Camera ${d.deviceId.slice(0, 8)}`}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Microphone</label>
+              <select value={mic} onChange={e => setMic(e.target.value)} style={inputStyle}>
+                <option value="">Default Microphone</option>
+                {mics.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Microphone ${d.deviceId.slice(0, 8)}`}</option>)}
+              </select>
+            </div>
+          </div>
+          {cameras.length === 0 && mics.length === 0 && (
+            <p style={{ marginTop: 12, color: "#64748B", fontSize: 13 }}>
+              Allow camera and microphone permissions to see your devices here.
+            </p>
+          )}
+        </div>
+
+        {/* AI Preferences */}
+        <div style={{ background: "#0F1629", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 24, marginBottom: 20 }}>
+          <h3 style={{ color: "#fff", fontWeight: 600, fontSize: 15, marginBottom: 20 }}>AI Preferences</h3>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div>
+              <label style={labelStyle}>Whisper Model</label>
+              <select value={whisper} onChange={e => setWhisper(e.target.value)} style={inputStyle}>
+                <option value="tiny">Tiny — Fastest, lower accuracy</option>
+                <option value="base">Base — Recommended (balanced)</option>
+                <option value="small">Small — Most accurate, slower</option>
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Default Difficulty</label>
+              <select value={difficulty} onChange={e => setDifficulty(e.target.value)} style={inputStyle}>
+                <option value="beginner">Beginner</option>
+                <option value="intermediate">Intermediate</option>
+                <option value="advanced">Advanced</option>
+                <option value="expert">Expert</option>
+              </select>
+            </div>
+          </div>
+          <div style={{ marginTop: 12, padding: "10px 14px", background: "rgba(99,102,241,0.06)", borderRadius: 8, fontSize: 12, color: "#94A3B8" }}>
+            Whisper model affects transcription speed. Base is recommended for most systems.
+          </div>
+        </div>
+
+        {/* Privacy Controls */}
+        <div style={{ background: "#0F1629", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 24, marginBottom: 20 }}>
+          <h3 style={{ color: "#fff", fontWeight: 600, fontSize: 15, marginBottom: 20 }}>Privacy Controls</h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+            {[
+              { label: "Enable Voice Analysis", sub: "Record and analyse your speech during interviews", on: voiceOn, toggle: () => setVoiceOn(v => !v) },
+              { label: "Enable Camera Analysis", sub: "Track eye contact and facial expressions during interviews", on: cameraOn, toggle: () => setCameraOn(v => !v) },
+            ].map((item, i) => (
+              <div key={item.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 0", borderBottom: i === 0 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
+                <div>
+                  <div style={{ color: "#F1F5F9", fontSize: 14, fontWeight: 500, marginBottom: 3 }}>{item.label}</div>
+                  <div style={{ color: "#64748B", fontSize: 12 }}>{item.sub}</div>
+                </div>
+                <Toggle on={item.on} onToggle={item.toggle} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </SidebarLayout>
+  );
+}
+
+// ─── Onboarding Page ───────────────────────────────────────────────────────────
+function OnboardingPage({ user, onFinish }) {
+  const [step, setStep]           = useState(1);
+  const [micOk, setMicOk]         = useState(null);   // null=untested, true=ok, false=denied
+  const [camOk, setCamOk]         = useState(null);
+  const [companies, setCompanies] = useState("");
+  const [role, setRole]           = useState("");
+  const [weakTopics, setWeakTopics] = useState([]);
+
+  const SUBJECTS = ["DSA", "OOPS", "System Design", "DBMS", "OS & Networking", "Machine Learning", "Behavioral"];
+
+  async function testHardware() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+      stream.getTracks().forEach(t => t.stop());
+      setMicOk(true); setCamOk(true);
+    } catch {
+      // Try audio only
+      try {
+        const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+        s.getTracks().forEach(t => t.stop());
+        setMicOk(true); setCamOk(false);
+      } catch {
+        setMicOk(false); setCamOk(false);
+      }
+    }
+  }
+
+  function toggleTopic(t) {
+    setWeakTopics(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
+  }
+
+  function finish() {
+    if (companies) localStorage.setItem("target_companies", companies);
+    if (role)      localStorage.setItem("target_role", role);
+    if (weakTopics.length) localStorage.setItem("weak_topics", JSON.stringify(weakTopics));
+    onFinish();
+  }
+
+  const inputStyle = { width: "100%", background: "#1E293B", border: "1px solid #334155", borderRadius: 8, padding: "11px 14px", color: "#F1F5F9", fontSize: 14 };
+
+  // ── Step dots ──
+  function StepDots() {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 32, justifyContent: "center" }}>
+        {[1, 2, 3, 4].map(n => (
+          <div key={n} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: n === step ? 28 : 10, height: 10, borderRadius: 99, background: n === step ? "#6366F1" : n < step ? "rgba(99,102,241,0.5)" : "rgba(255,255,255,0.1)", transition: "all 0.2s" }} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#0B0F1E", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      {/* Logo */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 40 }}>
+        <div style={{ width: 34, height: 34, background: "#6366F1", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700 }}>◈</div>
+        <span style={{ color: "#fff", fontWeight: 700, fontSize: 16 }}>InterviewAI</span>
+        <span style={{ color: "#64748B", fontSize: 13, marginLeft: 8 }}>Step {step} / 4</span>
+      </div>
+
+      <div style={{ width: "100%", maxWidth: 520, background: "#0F1629", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "36px 40px" }}>
+        <StepDots />
+
+        {/* ── Step 1: Welcome ─────────────────────────────────────── */}
+        {step === 1 && (
+          <>
+            <h2 style={{ color: "#fff", fontSize: 22, fontWeight: 700, marginBottom: 8, textAlign: "center" }}>
+              Welcome{user?.name ? `, ${user.name.split(" ")[0]}` : ""}! 👋
+            </h2>
+            <p style={{ color: "#94A3B8", fontSize: 14, textAlign: "center", marginBottom: 28 }}>
+              Let's set up your experience in 4 quick steps.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 32 }}>
+              {[
+                { icon: "🧠", title: "AI Answer Evaluation",   desc: "NLP engine scores your answers against ideal responses" },
+                { icon: "🎙", title: "Voice Confidence Analysis", desc: "Whisper transcribes and rates your pace, filler words, and tone" },
+                { icon: "👁", title: "Facial Behaviour Tracking", desc: "MediaPipe tracks eye contact, head stability, and emotion" },
+                { icon: "📈", title: "Adaptive Difficulty",    desc: "Questions get harder or easier based on your performance" },
+              ].map(f => (
+                <div key={f.title} style={{ display: "flex", gap: 14, background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: "12px 14px" }}>
+                  <span style={{ fontSize: 20, flexShrink: 0 }}>{f.icon}</span>
+                  <div>
+                    <div style={{ color: "#F1F5F9", fontWeight: 600, fontSize: 13, marginBottom: 2 }}>{f.title}</div>
+                    <div style={{ color: "#64748B", fontSize: 12 }}>{f.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setStep(2)} style={{ width: "100%", background: "#6366F1", color: "#fff", fontWeight: 600, padding: "12px", borderRadius: 8, fontSize: 14 }}>
+              Get Started →
+            </button>
+          </>
+        )}
+
+        {/* ── Step 2: Hardware Test ────────────────────────────────── */}
+        {step === 2 && (
+          <>
+            <h2 style={{ color: "#fff", fontSize: 20, fontWeight: 700, marginBottom: 8, textAlign: "center" }}>Test Your Hardware</h2>
+            <p style={{ color: "#94A3B8", fontSize: 14, textAlign: "center", marginBottom: 28 }}>
+              Grant camera and microphone access for the full experience.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
+              {[
+                { label: "Microphone", status: micOk, icon: "🎙" },
+                { label: "Camera",     status: camOk, icon: "📷" },
+              ].map(h => (
+                <div key={h.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: "14px 16px" }}>
+                  <span style={{ color: "#F1F5F9", fontSize: 14 }}>{h.icon}  {h.label}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: h.status === null ? "#64748B" : h.status ? "#22C55E" : "#F87171" }}>
+                    {h.status === null ? "Not tested" : h.status ? "✓ Detected" : "✗ Permission denied"}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {micOk === null && (
+              <button onClick={testHardware} style={{ width: "100%", background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.3)", color: "#A5B4FC", fontWeight: 600, padding: "11px", borderRadius: 8, fontSize: 14, marginBottom: 12 }}>
+                🎙 Test Camera & Microphone
+              </button>
+            )}
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setStep(3)} style={{ flex: 1, background: "#6366F1", color: "#fff", fontWeight: 600, padding: "11px", borderRadius: 8, fontSize: 14 }}>
+                Next →
+              </button>
+              <button onClick={() => setStep(3)} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#64748B", padding: "11px 18px", borderRadius: 8, fontSize: 14 }}>
+                Skip
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ── Step 3: Goals ────────────────────────────────────────── */}
+        {step === 3 && (
+          <>
+            <h2 style={{ color: "#fff", fontSize: 20, fontWeight: 700, marginBottom: 8, textAlign: "center" }}>Set Your Goals</h2>
+            <p style={{ color: "#94A3B8", fontSize: 14, textAlign: "center", marginBottom: 28 }}>
+              Tell us your targets so we can personalise your practice.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 28 }}>
+              <div>
+                <label style={{ fontSize: 13, color: "#94A3B8", marginBottom: 6, display: "block" }}>Target Companies</label>
+                <input value={companies} onChange={e => setCompanies(e.target.value)} placeholder="e.g. Google, Amazon, Microsoft" style={inputStyle} />
+              </div>
+              <div>
+                <label style={{ fontSize: 13, color: "#94A3B8", marginBottom: 6, display: "block" }}>Preferred Role</label>
+                <input value={role} onChange={e => setRole(e.target.value)} placeholder="e.g. Software Engineer, ML Engineer" style={inputStyle} />
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setStep(4)} style={{ flex: 1, background: "#6366F1", color: "#fff", fontWeight: 600, padding: "11px", borderRadius: 8, fontSize: 14 }}>
+                Next →
+              </button>
+              <button onClick={() => setStep(4)} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#64748B", padding: "11px 18px", borderRadius: 8, fontSize: 14 }}>
+                Skip
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ── Step 4: Weak Topics ──────────────────────────────────── */}
+        {step === 4 && (
+          <>
+            <h2 style={{ color: "#fff", fontSize: 20, fontWeight: 700, marginBottom: 8, textAlign: "center" }}>Select Weak Topics</h2>
+            <p style={{ color: "#94A3B8", fontSize: 14, textAlign: "center", marginBottom: 24 }}>
+              We'll prioritise these in your practice sessions.
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 28 }}>
+              {SUBJECTS.map(t => {
+                const on = weakTopics.includes(t);
+                return (
+                  <div key={t} onClick={() => toggleTopic(t)} style={{ display: "flex", alignItems: "center", gap: 10, background: on ? "rgba(99,102,241,0.12)" : "rgba(255,255,255,0.03)", border: `1px solid ${on ? "rgba(99,102,241,0.4)" : "rgba(255,255,255,0.07)"}`, borderRadius: 10, padding: "12px 14px", cursor: "pointer", transition: "all 0.15s" }}>
+                    <div style={{ width: 16, height: 16, borderRadius: 4, background: on ? "#6366F1" : "transparent", border: `2px solid ${on ? "#6366F1" : "#334155"}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      {on && <div style={{ width: 8, height: 8, background: "#fff", borderRadius: 2 }} />}
+                    </div>
+                    <span style={{ color: on ? "#A5B4FC" : "#94A3B8", fontSize: 13, fontWeight: on ? 600 : 400 }}>{t}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <button onClick={finish} style={{ width: "100%", background: "#6366F1", color: "#fff", fontWeight: 700, padding: "13px", borderRadius: 8, fontSize: 15 }}>
+              Start Your First Interview 🚀
+            </button>
+            <button onClick={finish} style={{ width: "100%", marginTop: 10, background: "transparent", color: "#64748B", fontSize: 13, padding: "8px" }}>
+              Skip Setup
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Back button */}
+      {step > 1 && (
+        <button onClick={() => setStep(s => s - 1)} style={{ marginTop: 20, background: "transparent", color: "#64748B", fontSize: 13 }}>
+          ← Back
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -1562,7 +1992,14 @@ export default function App() {
     if (token && user) setPage("dashboard");
   }, []);
 
-  function handleLogin(t, u) { setToken(t); setUser(u); setPage("dashboard"); }
+  function handleLogin(t, u) {
+    setToken(t); setUser(u);
+    if (localStorage.getItem("onboarding_complete")) {
+      setPage("dashboard");
+    } else {
+      setPage("onboarding");
+    }
+  }
 
   function handleLogout() {
     localStorage.removeItem("token"); localStorage.removeItem("user");
@@ -1574,6 +2011,13 @@ export default function App() {
     else if (dest === "analytics") setPage("analytics");
     else if (dest === "interview") setPage(activeSubject ? "subject" : "dashboard");
     else if (dest === "profile") setPage("profile");
+    else if (dest === "settings") setPage("settings");
+  }
+
+  function handleUpdateUser(updatedUser) {
+    const merged = { ...user, ...updatedUser };
+    setUser(merged);
+    localStorage.setItem("user", JSON.stringify(merged));
   }
 
   const sidebarProps = { user, onNav: handleNav, onLogout: handleLogout };
@@ -1583,12 +2027,14 @@ export default function App() {
       <style>{globalCss}</style>
       {page === "landing" && <LandingPage onLogin={() => setPage("login")} onGetStarted={() => setPage("login")} />}
       {page === "login" && <LoginPage onLogin={handleLogin} />}
+      {page === "onboarding" && <OnboardingPage user={user} onFinish={() => { localStorage.setItem("onboarding_complete", "true"); setPage("dashboard"); }} />}
       {page === "dashboard" && <DashboardPage token={token} {...sidebarProps} onSelectSubject={s => { setActiveSubject(s); setPage("subject"); }} onViewAnalytics={() => setPage("analytics")} />}
       {page === "subject" && activeSubject && <SubjectPage token={token} subject={activeSubject} onBack={() => setPage("dashboard")} onStart={sd => { setSessionData(sd); setPage("interview"); }} {...sidebarProps} />}
       {page === "interview" && sessionData && <InterviewRoomPage token={token} user={user} sessionData={sessionData} onResult={r => { setLastResult(r); setPage("result"); }} onBack={() => setPage("dashboard")} />}
       {page === "result" && <ResultsPage token={token} user={user} lastResult={lastResult} onBack={() => setPage("dashboard")} onRetake={() => setPage(activeSubject ? "subject" : "dashboard")} />}
       {page === "analytics" && <AnalyticsPage token={token} {...sidebarProps} />}
-      {page === "profile" && <ProfilePage token={token} {...sidebarProps} />}
+      {page === "profile" && <ProfilePage token={token} {...sidebarProps} onUpdateUser={handleUpdateUser} />}
+      {page === "settings" && <SettingsPage {...sidebarProps} />}
     </>
   );
 }

@@ -44,6 +44,7 @@ npm run dev
 | Phase 5 | Frontend redesign: 9 pages in App.jsx, recharts, Figma-matched layouts |
 | Phase 5b | DB redesign: dropped 3 dead tables, added full NLP breakdown columns to answers, added college/avatar_url/created_at to users |
 | Phase 5c | Interview Room: no-scroll 100vh layout, inline audio recording, mic button in bottom bar |
+| Phase 6 | Profile edit form (PUT /auth/profile + PUT /auth/password), SettingsPage (localStorage), OnboardingPage (4-step wizard) |
 
 ---
 
@@ -60,18 +61,18 @@ All pages live in `frontend/src/App.jsx` (~1600 lines). State-based routing (no 
 | `InterviewRoomPage` | No (full-screen) | `interview` | Complete — no-scroll redesign, inline mic |
 | `ResultsPage` | No (post-interview) | `result` | Complete |
 | `AnalyticsPage` | Yes — "Analytics" | `analytics` | Complete |
-| `ProfilePage` | Yes — "Profile" | `profile` | Display-only — wired and working. Edit form NOT built yet. |
+| `ProfilePage` | Yes — "Profile" | `profile` | Complete — edit form + change password connected to API |
+| `SettingsPage` | Yes — "Settings" | `settings` | Complete — hardware/AI/privacy toggles, all localStorage |
+| `OnboardingPage` | No (post-register, once) | `onboarding` | Complete — 4-step wizard, shown once after first login |
 
 **Page navigation flow:**
-`landing` → `login` → `dashboard` → `subject` → `interview` → `result`
-Sidebar nav: `dashboard` ↔ `interview` ↔ `analytics` ↔ `profile`
+`landing` → `login` → `onboarding` (first time) or `dashboard` (returning) → `subject` → `interview` → `result`
+Sidebar nav: `dashboard` ↔ `interview` ↔ `analytics` ↔ `profile` ↔ `settings`
 
 **Pages NOT yet built (all need to be added to App.jsx):**
 
 | Page | Page State | Priority |
 |---|---|---|
-| SettingsPage | `settings` | Phase 6 |
-| OnboardingPage | `onboarding` | Phase 6 |
 | CodingInterviewPage | `coding` | Phase 7 |
 | ResumeAnalyserPage | `resume` | Phase 9 |
 | JDAnalyserPage | `jd` | Phase 10 |
@@ -199,6 +200,8 @@ All registered in `main.py`. Verified against actual route files.
 |---|---|---|---|
 | POST | `/auth/register` | auth_routes.py | No |
 | POST | `/auth/login` | auth_routes.py | No |
+| PUT | `/auth/profile` | auth_routes.py | Yes |
+| PUT | `/auth/password` | auth_routes.py | Yes |
 | GET | `/interview/subjects` | interview_routes.py | Yes |
 | GET | `/interview/topics?subject_id=X` | interview_routes.py | Yes |
 | GET | `/interview/subtopics?topic_id=X` | interview_routes.py | Yes |
@@ -299,34 +302,18 @@ Voice:     25% pace + 25% filler + 20% confidence + 15% silence + 15% energy
 
 ## Full Roadmap
 
-### Phase 6 — Profile Edit + Settings + Onboarding
+### Phase 6 — Profile Edit + Settings + Onboarding — COMPLETED
 
-**Cleanup tasks — COMPLETED**
-- Removed unused service files: `memory_service.py`, `vision_service.py`, `voice_service.py`
-- `UserResponse` schema now includes `college` and `avatar_url`
-- `SubmitAnswerResponse` schema now includes `depth_score`
-- `interview_sessions.status` model default aligned to `"active"`
-
-**ProfilePage** (already in App.jsx, display works, edit needs backend):
-- Add edit form: name, branch, year, college fields with Save button
-- New backend route: `PUT /auth/profile` → update user record
-- New backend route: `PUT /auth/password` → verify current + update hash
-- Change password section with 3 fields + Update button
-- Danger zone: "Delete all session data" with confirmation dialog
-
-**SettingsPage** (new page, App.jsx):
-- Add to sidebar nav + handleNav + App render
-- Camera/mic device selectors from `navigator.mediaDevices.enumerateDevices()`
-- Whisper model preference (tiny/base/small) → localStorage
-- Default difficulty preference → localStorage
-- Privacy toggles → localStorage
-- [Save Settings] button
-
-**OnboardingPage** (new page, App.jsx):
-- Shown once after register: check `localStorage.getItem('onboarding_complete')`
-- 4 steps: Welcome + permissions → Hardware test (5s recording) → Target companies/roles → Weak topics
-- On finish: `localStorage.setItem('onboarding_complete', 'true')` → redirect to dashboard
-- Skip button always visible
+**All tasks done:**
+- Deleted dead service files: `memory_service.py`, `vision_service.py`, `voice_service.py`
+- `UserResponse` now includes `college` and `avatar_url`
+- `SubmitAnswerResponse` now includes `depth_score`
+- `interview_sessions.status` default aligned to `"active"`
+- `PUT /auth/profile` — update name, branch, year, college
+- `PUT /auth/password` — verify current password + update hash
+- `ProfilePage` — full edit form + change password section wired to API, updates root user state + localStorage
+- `SettingsPage` — hardware dropdowns, Whisper model, difficulty, privacy toggles, all localStorage
+- `OnboardingPage` — 4-step wizard (Welcome, Hardware, Goals, Weak Topics), shown once after first login
 
 ---
 
@@ -442,5 +429,5 @@ charts:  recharts (RadarChart, AreaChart)
 
 ---
 
-*Last updated: March 12, 2026 — Phase 6 cleanup complete*
-*Next: ProfilePage edit form (PUT /auth/profile + PUT /auth/password), then SettingsPage, OnboardingPage*
+*Last updated: March 12, 2026 — Phase 6 complete*
+*Next: Phase 7 — Coding Interview Round (Monaco Editor + POST /code/run + coding_problems DB table)*
