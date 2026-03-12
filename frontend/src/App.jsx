@@ -86,6 +86,7 @@ function Sidebar({ active, user, onNav, onLogout, showUser }) {
     { id: "analytics", label: "Analytics", icon: "▦" },
     { id: "resume",    label: "Resume AI", icon: "📄" },
     { id: "jd",        label: "JD Analyzer", icon: "🎯" },
+    { id: "replay",    label: "Replay",     icon: "▶" },
     { id: "profile",   label: "Profile",   icon: "○" },
     { id: "settings",  label: "Settings",  icon: "⚙" },
   ];
@@ -2738,6 +2739,233 @@ function JDAnalyserPage({ token, user, onNav, onLogout }) {
   );
 }
 
+// ─── Replay Page ─────────────────────────────────────────────────────────────
+function ReplayPage({ token, user, onNav, onLogout }) {
+  const [sessions, setSessions]         = useState([]);
+  const [selectedId, setSelectedId]     = useState("");
+  const [answers, setAnswers]           = useState([]);
+  const [coaching, setCoaching]         = useState(null);
+  const [loadingSessions, setLoadingSessions] = useState(true);
+  const [loadingAnswers, setLoadingAnswers]   = useState(false);
+  const [loadingCoach, setLoadingCoach]       = useState(false);
+  const [error, setError]               = useState("");
+
+  const card = { background: "#0F1629", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12 };
+
+  // Load sessions on mount
+  useEffect(() => {
+    fetch(`${API}/interview/sessions`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => { setSessions(Array.isArray(d) ? d : []); setLoadingSessions(false); })
+      .catch(() => { setError("Could not load sessions."); setLoadingSessions(false); });
+  }, []);
+
+  async function loadSession(id) {
+    setSelectedId(id);
+    setAnswers([]); setCoaching(null); setError("");
+    setLoadingAnswers(true);
+    try {
+      const r = await fetch(`${API}/interview/sessions/${id}/answers`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const d = await r.json();
+      if (!r.ok) { setError(d.detail || "Could not load answers."); setLoadingAnswers(false); return; }
+      setAnswers(d);
+      setLoadingAnswers(false);
+      // Auto-fetch coaching summary
+      if (d.length > 0) fetchCoaching(d);
+    } catch { setError("Server error."); setLoadingAnswers(false); }
+  }
+
+  async function fetchCoaching(ans) {
+    setLoadingCoach(true);
+    const payload = ans.map(a => ({
+      question: a.question_text,
+      answer:   a.user_answer,
+      score:    a.total_score,
+    }));
+    try {
+      const r = await fetch(`${API}/ai/session-feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ answers: payload }),
+      });
+      const d = await r.json();
+      if (r.ok) setCoaching(d);
+    } catch { /* silent — coaching is optional */ }
+    setLoadingCoach(false);
+  }
+
+  function scoreColor(s) {
+    if (!s && s !== 0) return "#64748B";
+    if (s >= 70) return "#22C55E";
+    if (s >= 45) return "#F59E0B";
+    return "#EF4444";
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return "—";
+    return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  }
+
+  // Chart data
+  const chartData = answers.map((a, i) => ({ q: `Q${i + 1}`, score: Math.round(a.total_score || 0) }));
+
+  return (
+    <SidebarLayout active="replay" user={user} onNav={onNav} onLogout={onLogout}>
+      {/* Header */}
+      <div style={{ marginBottom: 20 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: "#fff", margin: 0 }}>Interview Replay</h1>
+        <p style={{ color: "#64748B", fontSize: 13, margin: "4px 0 0" }}>Review your past sessions with AI coaching feedback</p>
+      </div>
+
+      {/* Session selector */}
+      <div style={{ ...card, padding: "14px 18px", marginBottom: 16, display: "flex", alignItems: "center", gap: 14 }}>
+        <span style={{ color: "#94A3B8", fontSize: 13, fontWeight: 500, flexShrink: 0 }}>Select Session:</span>
+        {loadingSessions ? (
+          <span style={{ color: "#475569", fontSize: 13 }}><span className="spin">⟳</span> Loading...</span>
+        ) : (
+          <select
+            value={selectedId}
+            onChange={e => e.target.value && loadSession(e.target.value)}
+            style={{
+              flex: 1, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: 8, color: "#F1F5F9", fontSize: 13, padding: "8px 12px", outline: "none",
+            }}
+          >
+            <option value="">— Choose a session —</option>
+            {sessions.map(s => (
+              <option key={s.session_id} value={s.session_id}>
+                {fmtDate(s.start_time)} · {s.difficulty} · {s.questions_answered} answers
+                {s.final_score ? ` · Score: ${Math.round(s.final_score)}` : ""}
+              </option>
+            ))}
+          </select>
+        )}
+        {sessions.length === 0 && !loadingSessions && (
+          <span style={{ color: "#475569", fontSize: 13 }}>No sessions found — complete an interview first.</span>
+        )}
+      </div>
+
+      {error && <div style={{ color: "#EF4444", fontSize: 13, marginBottom: 12 }}>⚠ {error}</div>}
+
+      {loadingAnswers && (
+        <div style={{ textAlign: "center", padding: 40, color: "#6366F1" }}>
+          <span className="spin" style={{ fontSize: 22 }}>⟳</span>
+          <p style={{ marginTop: 10, color: "#94A3B8" }}>Loading session...</p>
+        </div>
+      )}
+
+      {answers.length > 0 && !loadingAnswers && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }} className="fade-in">
+
+          {/* Score trend chart */}
+          <div style={{ ...card, padding: 20 }}>
+            <div style={{ fontSize: 11, color: "#94A3B8", fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, marginBottom: 14 }}>Score Trend</div>
+            <ResponsiveContainer width="100%" height={160}>
+              <AreaChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+                <defs>
+                  <linearGradient id="replayGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor="#6366F1" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#6366F1" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                <XAxis dataKey="q" tick={{ fill: "#475569", fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 100]} tick={{ fill: "#475569", fontSize: 11 }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ background: "#0F1629", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#F1F5F9", fontSize: 12 }} />
+                <Area type="monotone" dataKey="score" stroke="#6366F1" strokeWidth={2} fill="url(#replayGrad)" dot={{ fill: "#6366F1", r: 4 }} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* AI Coaching Summary */}
+          <div style={{ ...card, padding: 20 }}>
+            <div style={{ fontSize: 11, color: "#94A3B8", fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, marginBottom: 14 }}>
+              🤖 AI Coaching Summary
+            </div>
+            {loadingCoach ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#6366F1" }}>
+                <span className="spin">⟳</span>
+                <span style={{ fontSize: 13 }}>Generating coaching feedback...</span>
+              </div>
+            ) : coaching ? (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+                {[
+                  { label: "✅ Strengths",   items: coaching.strengths,  color: "#22C55E", bg: "rgba(34,197,94,0.07)",   border: "rgba(34,197,94,0.2)"  },
+                  { label: "⚠ Weaknesses",  items: coaching.weaknesses, color: "#F59E0B", bg: "rgba(245,158,11,0.07)",  border: "rgba(245,158,11,0.2)" },
+                  { label: "💡 Advice",      items: coaching.advice,     color: "#6366F1", bg: "rgba(99,102,241,0.07)",  border: "rgba(99,102,241,0.2)" },
+                ].map(sec => (
+                  <div key={sec.label} style={{ background: sec.bg, border: `1px solid ${sec.border}`, borderRadius: 10, padding: 14 }}>
+                    <div style={{ color: sec.color, fontWeight: 600, fontSize: 12, marginBottom: 10 }}>{sec.label}</div>
+                    {(sec.items || []).map((item, i) => (
+                      <div key={i} style={{ color: "#CBD5E1", fontSize: 12, lineHeight: 1.6, marginBottom: 6, display: "flex", gap: 6 }}>
+                        <span style={{ color: sec.color, flexShrink: 0 }}>▸</span>{item}
+                      </div>
+                    ))}
+                    {(!sec.items || sec.items.length === 0) && (
+                      <span style={{ color: "#475569", fontSize: 12 }}>None identified</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <span style={{ color: "#475569", fontSize: 13 }}>Coaching summary unavailable.</span>
+            )}
+          </div>
+
+          {/* Q&A Timeline */}
+          <div>
+            <div style={{ fontSize: 11, color: "#94A3B8", fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Q&A Timeline</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {answers.map((a, i) => (
+                <div key={a.answer_id || i} style={{ ...card, padding: 18 }}>
+                  {/* Question header */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                    <div style={{ display: "flex", gap: 10, alignItems: "flex-start", flex: 1 }}>
+                      <span style={{ background: "rgba(99,102,241,0.15)", color: "#818CF8", fontWeight: 700, fontSize: 11, padding: "3px 9px", borderRadius: 99, flexShrink: 0, marginTop: 1 }}>Q{i + 1}</span>
+                      <span style={{ color: "#F1F5F9", fontSize: 14, lineHeight: 1.5 }}>{a.question_text}</span>
+                    </div>
+                    <span style={{ color: scoreColor(a.total_score), fontWeight: 800, fontSize: 20, flexShrink: 0, marginLeft: 12 }}>{Math.round(a.total_score || 0)}</span>
+                  </div>
+
+                  {/* Answer */}
+                  <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "10px 14px", marginBottom: 10 }}>
+                    <div style={{ fontSize: 10, color: "#475569", marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>Your Answer</div>
+                    <p style={{ color: "#94A3B8", fontSize: 13, lineHeight: 1.6, margin: 0 }}>{a.user_answer}</p>
+                  </div>
+
+                  {/* Score mini-row */}
+                  <div style={{ display: "flex", gap: 16, marginBottom: 10 }}>
+                    {[
+                      { label: "NLP", value: a.nlp_score },
+                      { label: "Voice", value: a.voice_score },
+                      { label: "Face", value: a.face_score },
+                    ].map(s => (
+                      <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ color: "#475569", fontSize: 11 }}>{s.label}</span>
+                        <span style={{ color: scoreColor(s.value), fontSize: 12, fontWeight: 600 }}>{Math.round(s.value || 0)}%</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Feedback */}
+                  {a.feedback && (
+                    <div style={{ borderLeft: "3px solid #6366F1", paddingLeft: 12 }}>
+                      <p style={{ color: "#C7D2FE", fontSize: 12, lineHeight: 1.5, margin: 0 }}>💡 {a.feedback}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+        </div>
+      )}
+    </SidebarLayout>
+  );
+}
+
 export default function App() {
   const [page, setPage] = useState("landing");
   const [token, setToken] = useState(() => localStorage.getItem("token") || "");
@@ -2773,6 +3001,7 @@ export default function App() {
     else if (dest === "coding")   setPage("coding");
     else if (dest === "resume")   setPage("resume");
     else if (dest === "jd")       setPage("jd");
+    else if (dest === "replay")   setPage("replay");
   }
 
   function handleUpdateUser(updatedUser) {
@@ -2799,6 +3028,7 @@ export default function App() {
       {page === "coding"   && <CodingInterviewPage token={token} {...sidebarProps} onResult={r => { setLastResult(r); setPage("result"); }} />}
       {page === "resume"   && <ResumeAnalyserPage token={token} {...sidebarProps} />}
       {page === "jd"       && <JDAnalyserPage token={token} {...sidebarProps} />}
+      {page === "replay"   && <ReplayPage token={token} {...sidebarProps} />}
     </>
   );
 }

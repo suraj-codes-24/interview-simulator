@@ -5,6 +5,9 @@ from typing import Optional, List
 from core.dependencies import get_current_user
 from database import get_db
 from models.user import User
+from models.interview_session import InterviewSession
+from models.answer import Answer
+from models.question import Question
 from schemas.interview_schema import (
     SubjectResponse,
     StartInterviewRequest,
@@ -156,4 +159,67 @@ def seed_db_questions(
 ):
     """Seed the full Subject → Topic → Subtopic → Question hierarchy."""
     result = seed_questions(db)
+    return result
+
+
+# ── Replay endpoints ─────────────────────────────────────────────────────────
+
+@router.get("/sessions")
+def list_sessions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List all interview sessions for the logged-in user, newest first."""
+    sessions = (
+        db.query(InterviewSession)
+        .filter(InterviewSession.user_id == current_user.id)
+        .order_by(InterviewSession.start_time.desc())
+        .all()
+    )
+    return [
+        {
+            "session_id":          s.id,
+            "subject_id":          s.subject_id,
+            "difficulty":          s.difficulty,
+            "total_questions":     s.total_questions,
+            "questions_answered":  s.questions_answered,
+            "start_time":          s.start_time.isoformat() if s.start_time else None,
+            "final_score":         s.final_score,
+        }
+        for s in sessions
+    ]
+
+
+@router.get("/sessions/{session_id}/answers")
+def get_session_answers(
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return all answers for a session, joined with question text."""
+    session = db.query(InterviewSession).filter(
+        InterviewSession.id == session_id,
+        InterviewSession.user_id == current_user.id,
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found.")
+
+    answers = (
+        db.query(Answer)
+        .filter(Answer.session_id == session_id)
+        .all()
+    )
+    result = []
+    for a in answers:
+        question = db.query(Question).filter(Question.id == a.question_id).first()
+        result.append({
+            "answer_id":     a.id,
+            "question_text": question.question_text if question else "Unknown question",
+            "user_answer":   a.user_answer,
+            "nlp_score":     a.nlp_score,
+            "voice_score":   a.voice_score,
+            "face_score":    a.face_score,
+            "total_score":   a.total_score,
+            "feedback":      a.feedback,
+        })
     return result

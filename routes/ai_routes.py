@@ -6,6 +6,8 @@ from core.dependencies import get_current_user
 from database import get_db
 from models.user import User
 from services.followup_service import generate_followup
+from services.session_feedback_service import generate_session_feedback
+from typing import List
 
 router = APIRouter(tags=["AI"])
 
@@ -32,3 +34,25 @@ def get_followup(
         user_answer=data.user_answer,
     )
     return {"followup_question": question}
+
+
+class SessionAnswerItem(BaseModel):
+    question: str
+    answer: str
+    score: float
+
+
+class SessionFeedbackRequest(BaseModel):
+    answers: List[SessionAnswerItem]
+
+
+@router.post("/session-feedback")
+def get_session_feedback(
+    data: SessionFeedbackRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Generate an AI coaching summary for a completed interview session."""
+    answers_dicts = [{"question": a.question, "answer": a.answer, "score": a.score} for a in data.answers]
+    feedback = generate_session_feedback(answers_dicts)
+    return feedback
