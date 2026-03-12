@@ -5,6 +5,7 @@ import {
 } from "recharts";
 import VoiceRecorder from "./VoiceRecorder";
 import VisionRecorder from "./VisionRecorder";
+import Editor from "@monaco-editor/react";
 
 const API = "http://127.0.0.1:8000";
 
@@ -81,6 +82,7 @@ function Sidebar({ active, user, onNav, onLogout, showUser }) {
   const items = [
     { id: "dashboard", label: "Dashboard", icon: "⊞" },
     { id: "interview", label: "Interview", icon: "◉" },
+    { id: "coding",    label: "Coding",    icon: "💻" },
     { id: "analytics", label: "Analytics", icon: "▦" },
     { id: "profile",   label: "Profile",   icon: "○" },
     { id: "settings",  label: "Settings",  icon: "⚙" },
@@ -1980,6 +1982,359 @@ function OnboardingPage({ user, onFinish }) {
 }
 
 // ─── App Root ──────────────────────────────────────────────────────────────────
+// ─── Coding Interview Page ─────────────────────────────────────────────────────
+const SAMPLE_PROBLEM = {
+  title: "Two Sum",
+  difficulty: "Easy",
+  difficultyColor: "#22C55E",
+  description: `Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.\n\nYou may assume that each input would have exactly one solution, and you may not use the same element twice.`,
+  examples: [
+    { input: "nums = [2,7,11,15], target = 9", output: "[0,1]", explanation: "nums[0] + nums[1] = 2 + 7 = 9" },
+    { input: "nums = [3,2,4], target = 6",     output: "[1,2]", explanation: "nums[1] + nums[2] = 2 + 4 = 6" },
+  ],
+  constraints: ["2 ≤ nums.length ≤ 10⁴", "-10⁹ ≤ nums[i] ≤ 10⁹", "Only one valid answer exists."],
+};
+
+const STARTER_CODE = {
+  Python: `def twoSum(nums, target):\n    # Write your solution here\n    pass\n`,
+  "C++":  `#include <vector>\nusing namespace std;\n\nvector<int> twoSum(vector<int>& nums, int target) {\n    // Write your solution here\n    return {};\n}\n`,
+  Java:   `class Solution {\n    public int[] twoSum(int[] nums, int target) {\n        // Write your solution here\n        return new int[]{};\n    }\n}\n`,
+};
+
+const LANGUAGE_MAP = { Python: "python", "C++": "cpp", Java: "java" };
+
+function CodingInterviewPage({ token, user, onNav, onLogout, onResult }) {
+  const [language, setLanguage]   = useState("Python");
+  const [code, setCode]           = useState(STARTER_CODE["Python"]);
+  const [timer, setTimer]   = useState(30 * 60);
+  const [results, setResults] = useState(null);
+  const [running, setRunning]           = useState(false);
+  const [runError, setRunError]         = useState("");
+  const [submitting, setSubmitting]     = useState(false);
+  const [submitPreview, setSubmitPreview] = useState(null);
+
+  // countdown timer
+  useEffect(() => {
+    const id = setInterval(() => setTimer(t => (t > 0 ? t - 1 : 0)), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  function formatTime(s) {
+    const m = Math.floor(s / 60).toString().padStart(2, "0");
+    const sec = (s % 60).toString().padStart(2, "0");
+    return `${m}:${sec}`;
+  }
+
+  function handleLanguageChange(lang) {
+    setLanguage(lang);
+    setCode(STARTER_CODE[lang]);
+    setResults(null);
+    setRunError("");
+  }
+
+  async function runCode() {
+    setRunning(true);
+    setResults(null);
+    setRunError("");
+    try {
+      const res = await fetch(`${API}/code/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ language: language.toLowerCase(), code, problem_id: 1 }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setRunError(data.detail || "Execution failed.");
+      } else {
+        setResults(data);
+      }
+    } catch (e) {
+      setRunError("Could not reach server. Is the backend running?");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  async function submitSolution() {
+    // If no results yet, run tests first
+    let currentResults = results;
+    if (!currentResults) {
+      setRunning(true);
+      setRunError("");
+      try {
+        const res = await fetch(`${API}/code/run`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ language: language.toLowerCase(), code, problem_id: 1 }),
+        });
+        const data = await res.json();
+        if (!res.ok) { setRunError(data.detail || "Run failed before submit."); setRunning(false); return; }
+        setResults(data);
+        currentResults = data;
+      } catch (e) {
+        setRunError("Could not reach server."); setRunning(false); return;
+      } finally {
+        setRunning(false);
+      }
+    }
+
+    const passed = currentResults.passed_cases.filter(c => c.passed).length;
+    const total  = currentResults.passed_cases.length;
+    const score  = Math.round((passed / total) * 100);
+
+    const preview = { passed, total, score, runtime: currentResults.runtime_ms };
+    setSubmitPreview(preview);
+    setSubmitting(true);
+
+    // Brief 1.5s preview, then navigate to results
+    setTimeout(() => {
+      setSubmitting(false);
+      onResult({
+        problem: "Two Sum",
+        language,
+        runtime: currentResults.runtime_ms,
+        passed,
+        total,
+        score,
+        total_score: score,
+        nlp_score: score,
+        voice_score: 0,
+        face_score: 0,
+        feedback: `${passed}/${total} test cases passed in ${currentResults.runtime_ms}ms using ${language}.`,
+        type: "coding",
+      });
+    }, 1500);
+  }
+
+  const card = { background: "#0F1629", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12 };
+  const btn  = (bg, color = "#fff") => ({
+    background: bg, color, border: "none", borderRadius: 8,
+    padding: "10px 24px", fontWeight: 600, fontSize: 14, cursor: "pointer",
+  });
+
+  return (
+    <SidebarLayout active="coding" user={user} onNav={onNav} onLogout={onLogout}>
+      {/* ── Header ── */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: "#fff", margin: 0 }}>Coding Interview</h1>
+          <p style={{ color: "#64748B", fontSize: 13, margin: "4px 0 0" }}>Solve the problem and submit your solution</p>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ ...card, padding: "8px 18px", display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 16 }}>⏱</span>
+            <span style={{ fontWeight: 700, fontSize: 18, color: timer < 300 ? "#EF4444" : "#F1F5F9", fontVariantNumeric: "tabular-nums" }}>
+              {formatTime(timer)}
+            </span>
+          </div>
+          <button onClick={() => onNav("dashboard")} style={{ ...btn("rgba(239,68,68,0.15)", "#EF4444"), border: "1px solid rgba(239,68,68,0.3)" }}>
+            End Session
+          </button>
+        </div>
+      </div>
+
+      {/* ── Two Column Layout ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, height: "calc(100vh - 220px)", minHeight: 480 }}>
+
+        {/* ── LEFT: Problem Panel ── */}
+        <div style={{ ...card, padding: 24, overflowY: "auto", display: "flex", flexDirection: "column", gap: 20 }}>
+          {/* Title + difficulty */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <h2 style={{ fontSize: 20, fontWeight: 700, color: "#fff", margin: 0 }}>{SAMPLE_PROBLEM.title}</h2>
+            <span style={{ background: `${SAMPLE_PROBLEM.difficultyColor}18`, color: SAMPLE_PROBLEM.difficultyColor, fontSize: 12, fontWeight: 600, padding: "3px 10px", borderRadius: 99 }}>
+              {SAMPLE_PROBLEM.difficulty}
+            </span>
+          </div>
+
+          {/* Description */}
+          <div>
+            <p style={{ color: "#CBD5E1", fontSize: 14, lineHeight: 1.8, margin: 0, whiteSpace: "pre-line" }}>
+              {SAMPLE_PROBLEM.description}
+            </p>
+          </div>
+
+          {/* Examples */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <h3 style={{ color: "#94A3B8", fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, margin: 0 }}>Examples</h3>
+            {SAMPLE_PROBLEM.examples.map((ex, i) => (
+              <div key={i} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: 14 }}>
+                <div style={{ color: "#94A3B8", fontSize: 13, marginBottom: 4 }}>
+                  <span style={{ color: "#6366F1", fontWeight: 600 }}>Input: </span>
+                  <code style={{ fontFamily: "monospace", color: "#F1F5F9" }}>{ex.input}</code>
+                </div>
+                <div style={{ color: "#94A3B8", fontSize: 13, marginBottom: 4 }}>
+                  <span style={{ color: "#22C55E", fontWeight: 600 }}>Output: </span>
+                  <code style={{ fontFamily: "monospace", color: "#F1F5F9" }}>{ex.output}</code>
+                </div>
+                <div style={{ color: "#64748B", fontSize: 12 }}>
+                  <span style={{ fontWeight: 500 }}>Explanation: </span>{ex.explanation}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Constraints */}
+          <div>
+            <h3 style={{ color: "#94A3B8", fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, margin: "0 0 10px" }}>Constraints</h3>
+            <ul style={{ paddingLeft: 18, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+              {SAMPLE_PROBLEM.constraints.map((c, i) => (
+                <li key={i} style={{ color: "#CBD5E1", fontSize: 13, fontFamily: "monospace" }}>{c}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        {/* ── RIGHT: Editor Panel ── */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {/* Language selector */}
+          <div style={{ ...card, padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ color: "#94A3B8", fontSize: 13, fontWeight: 500 }}>Language</span>
+            <div style={{ display: "flex", gap: 8 }}>
+              {["Python", "C++", "Java"].map(lang => (
+                <button
+                  key={lang}
+                  onClick={() => handleLanguageChange(lang)}
+                  style={{
+                    padding: "5px 14px", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer",
+                    background: language === lang ? "#6366F1" : "rgba(255,255,255,0.05)",
+                    color: language === lang ? "#fff" : "#94A3B8",
+                    border: language === lang ? "1px solid #6366F1" : "1px solid rgba(255,255,255,0.07)",
+                  }}
+                >
+                  {lang}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Monaco Editor */}
+          <div style={{ ...card, flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+            <div style={{ padding: "8px 16px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#EF4444", display: "inline-block" }} />
+              <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#F59E0B", display: "inline-block" }} />
+              <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#22C55E", display: "inline-block" }} />
+              <span style={{ color: "#475569", fontSize: 12, marginLeft: 8 }}>
+                solution.{LANGUAGE_MAP[language] === "python" ? "py" : LANGUAGE_MAP[language] === "cpp" ? "cpp" : "java"}
+              </span>
+            </div>
+            <div style={{ flex: 1 }}>
+              <Editor
+                height="100%"
+                language={LANGUAGE_MAP[language]}
+                theme="vs-dark"
+                value={code}
+                onChange={value => setCode(value || "")}
+                options={{
+                  fontSize: 14,
+                  fontFamily: "'Fira Code', 'Consolas', monospace",
+                  minimap: { enabled: false },
+                  automaticLayout: true,
+                  scrollBeyondLastLine: false,
+                  lineNumbers: "on",
+                  tabSize: 4,
+                  wordWrap: "on",
+                  padding: { top: 16 },
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Results Panel */}
+          {runError && (
+            <div style={{ ...card, padding: 14, border: "1px solid rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.07)" }}>
+              <span style={{ color: "#EF4444", fontSize: 13 }}>⚠ {runError}</span>
+            </div>
+          )}
+          {results && (
+            <div style={{ ...card, padding: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <span style={{ color: "#94A3B8", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1 }}>Test Results</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <span style={{ fontSize: 12, color: results.passed === results.total ? "#22C55E" : "#F59E0B", fontWeight: 600 }}>
+                    {results.passed}/{results.total} Passed
+                  </span>
+                  <span style={{ fontSize: 12, color: "#475569" }}>Runtime: {results.runtime_ms} ms</span>
+                </div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {results.passed_cases.map((tc, i) => (
+                  <div key={i} style={{
+                    display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto",
+                    gap: 8, padding: "8px 12px", borderRadius: 6, fontSize: 12,
+                    background: tc.passed ? "rgba(34,197,94,0.07)" : "rgba(239,68,68,0.07)",
+                    border: `1px solid ${tc.passed ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}`,
+                  }}>
+                    <div>
+                      <div style={{ color: "#475569", fontSize: 10, marginBottom: 2 }}>INPUT</div>
+                      <code style={{ color: "#CBD5E1", fontFamily: "monospace" }}>{tc.input}</code>
+                    </div>
+                    <div>
+                      <div style={{ color: "#475569", fontSize: 10, marginBottom: 2 }}>EXPECTED</div>
+                      <code style={{ color: "#22C55E", fontFamily: "monospace" }}>{tc.expected}</code>
+                    </div>
+                    <div>
+                      <div style={{ color: "#475569", fontSize: 10, marginBottom: 2 }}>OUTPUT</div>
+                      <code style={{ color: tc.passed ? "#22C55E" : "#EF4444", fontFamily: "monospace" }}>{tc.actual}</code>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", fontSize: 16 }}>
+                      {tc.passed ? "✓" : "✗"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Submit Score Preview ── */}
+      {submitPreview && submitting && (
+        <div style={{ ...card, padding: "14px 20px", marginTop: 12, display: "flex", alignItems: "center", justifyContent: "space-between", border: "1px solid rgba(99,102,241,0.4)", background: "rgba(99,102,241,0.08)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 24 }}>{submitPreview.score === 100 ? "🎉" : submitPreview.score >= 60 ? "👍" : "💪"}</span>
+            <div>
+              <div style={{ color: "#F1F5F9", fontWeight: 700, fontSize: 16 }}>
+                Score: <span style={{ color: submitPreview.score >= 80 ? "#22C55E" : submitPreview.score >= 50 ? "#F59E0B" : "#EF4444" }}>{submitPreview.score}%</span>
+              </div>
+              <div style={{ color: "#94A3B8", fontSize: 13 }}>{submitPreview.passed}/{submitPreview.total} test cases passed · {submitPreview.runtime}ms</div>
+            </div>
+          </div>
+          <span style={{ color: "#6366F1", fontSize: 13, fontWeight: 500 }}>Loading results...</span>
+        </div>
+      )}
+
+      {/* ── Bottom Action Bar ── */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 16, ...card, padding: "14px 20px" }}>
+        <span style={{ color: "#64748B", fontSize: 13 }}>
+          💡 Tip: Think about time complexity before coding
+        </span>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button
+            onClick={runCode}
+            disabled={running}
+            style={{ ...btn("rgba(255,255,255,0.06)", "#CBD5E1"), border: "1px solid rgba(255,255,255,0.1)", opacity: running ? 0.6 : 1 }}
+          >
+            {running ? "Running..." : "▶ Run Code"}
+          </button>
+          <button
+            onClick={() => { console.log("Skip clicked"); onNav("dashboard"); }}
+            style={{ ...btn("transparent", "#94A3B8") }}
+          >
+            Skip
+          </button>
+          <button
+            onClick={submitSolution}
+            disabled={submitting || running}
+            style={{ ...btn("#6366F1"), opacity: submitting ? 0.7 : 1 }}
+          >
+            {submitting ? "Submitting..." : "✓ Submit"}
+          </button>
+        </div>
+      </div>
+    </SidebarLayout>
+  );
+}
+
 export default function App() {
   const [page, setPage] = useState("landing");
   const [token, setToken] = useState(() => localStorage.getItem("token") || "");
@@ -2012,6 +2367,7 @@ export default function App() {
     else if (dest === "interview") setPage(activeSubject ? "subject" : "dashboard");
     else if (dest === "profile") setPage("profile");
     else if (dest === "settings") setPage("settings");
+    else if (dest === "coding")   setPage("coding");
   }
 
   function handleUpdateUser(updatedUser) {
@@ -2035,6 +2391,7 @@ export default function App() {
       {page === "analytics" && <AnalyticsPage token={token} {...sidebarProps} />}
       {page === "profile" && <ProfilePage token={token} {...sidebarProps} onUpdateUser={handleUpdateUser} />}
       {page === "settings" && <SettingsPage {...sidebarProps} />}
+      {page === "coding"   && <CodingInterviewPage token={token} {...sidebarProps} onResult={r => { setLastResult(r); setPage("result"); }} />}
     </>
   );
 }

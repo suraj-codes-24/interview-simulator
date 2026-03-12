@@ -10,6 +10,7 @@ from routes.answer_routes import router as answer_router
 from routes.analytics_routes import router as analytics_router
 from routes.voice_routes import router as voice_router
 from routes.vision_routes import router as vision_router
+from routes.code_routes import router as code_router
 
 from database import engine, Base
 
@@ -43,6 +44,7 @@ app.include_router(answer_router)
 app.include_router(analytics_router)
 app.include_router(voice_router, prefix="/api", tags=["Voice"])
 app.include_router(vision_router)
+app.include_router(code_router)
 
 @app.get("/")
 def root():
