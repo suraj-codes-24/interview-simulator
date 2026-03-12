@@ -84,6 +84,7 @@ function Sidebar({ active, user, onNav, onLogout, showUser }) {
     { id: "interview", label: "Interview", icon: "◉" },
     { id: "coding",    label: "Coding",    icon: "💻" },
     { id: "analytics", label: "Analytics", icon: "▦" },
+    { id: "resume",    label: "Resume AI", icon: "📄" },
     { id: "profile",   label: "Profile",   icon: "○" },
     { id: "settings",  label: "Settings",  icon: "⚙" },
   ];
@@ -775,6 +776,13 @@ function InterviewRoomPage({ token, user, sessionData, onResult, onBack }) {
   const [visionDataPoints, setVisionDataPoints] = useState([]);
   const [latestVision, setLatestVision]         = useState(null);
 
+  // ── Follow-up ────────────────────────────────────────────────────────
+  const [followup, setFollowup]             = useState(null);   // { question }
+  const [followupAnswer, setFollowupAnswer] = useState("");
+  const [followupLoading, setFollowupLoading] = useState(false);
+  const [followupSubmitting, setFollowupSubmitting] = useState(false);
+  const [followupResult, setFollowupResult] = useState(null);
+
   const { sessionId, subjectId, topicId, subtopicId, difficulty, subjectName } = sessionData;
 
   useEffect(() => { fetchQuestion(); }, []);
@@ -790,6 +798,7 @@ function InterviewRoomPage({ token, user, sessionData, onResult, onBack }) {
   async function fetchQuestion() {
     setLoading(true); setResult(null); setAnswer(""); setError("");
     setVoiceResult(null); setVisionDataPoints([]);
+    setFollowup(null); setFollowupAnswer(""); setFollowupResult(null);
     try {
       let q = `subject_id=${subjectId}&difficulty=${difficulty}&session_id=${sessionId}`;
       if (topicId)    q += `&topic_id=${topicId}`;
@@ -825,8 +834,44 @@ function InterviewRoomPage({ token, user, sessionData, onResult, onBack }) {
       const d = await r.json();
       if (!r.ok) { setError(d.detail || "Submission failed"); setSubmitting(false); return; }
       setResult(d);
+      // Trigger follow-up for weak answers
+      if (d.total_score < 70) {
+        fetchFollowup(question.question_text, finalAnswer);
+      }
     } catch { setError("Server error"); }
     setSubmitting(false);
+  }
+
+  async function fetchFollowup(questionText, userAnswer) {
+    setFollowupLoading(true);
+    try {
+      const r = await fetch(`${API}/ai/followup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ question_text: questionText, user_answer: userAnswer, session_id: sessionId }),
+      });
+      const d = await r.json();
+      if (r.ok) setFollowup({ question: d.followup_question });
+    } catch { /* silent — follow-up is optional */ }
+    setFollowupLoading(false);
+  }
+
+  async function submitFollowupAnswer() {
+    if (!followupAnswer.trim()) return;
+    setFollowupSubmitting(true);
+    try {
+      const r = await fetch(`${API}/interview/answer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          session_id: sessionId, question_id: question.question_id,
+          user_answer: followupAnswer, voice_score: 0, face_score: 0,
+        }),
+      });
+      const d = await r.json();
+      if (r.ok) setFollowupResult(d);
+    } catch { /* silent */ }
+    setFollowupSubmitting(false);
   }
 
   function handleVisionResult(data) {
@@ -1050,6 +1095,47 @@ function InterviewRoomPage({ token, user, sessionData, onResult, onBack }) {
           </div>
         )}
       </div>
+
+      {/* ── Follow-up Question Panel ─────────────────────────────────────── */}
+      {followupLoading && (
+        <div className="fade-in" style={{ margin: "0 0 8px", background: "#0F1629", border: "1px solid rgba(99,102,241,0.25)", borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+          <span className="spin" style={{ fontSize: 14, color: "#6366F1" }}>⟳</span>
+          <span style={{ color: "#94A3B8", fontSize: 13 }}>Generating follow-up question...</span>
+        </div>
+      )}
+      {followup && !followupLoading && (
+        <div className="fade-in" style={{ margin: "0 0 8px", background: "#0F1629", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 10, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+            <span style={{ fontSize: 16, flexShrink: 0 }}>🔎</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11, color: "#F59E0B", fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Follow-up Question</div>
+              <div style={{ color: "#F1F5F9", fontSize: 14, lineHeight: 1.5 }}>{followup.question}</div>
+            </div>
+          </div>
+          {!followupResult ? (
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                value={followupAnswer}
+                onChange={e => setFollowupAnswer(e.target.value)}
+                placeholder="Type your answer..."
+                style={{ flex: 1, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "8px 12px", color: "#F1F5F9", fontSize: 13, outline: "none" }}
+              />
+              <button
+                onClick={submitFollowupAnswer}
+                disabled={followupSubmitting || !followupAnswer.trim()}
+                style={{ background: "#F59E0B", color: "#000", fontWeight: 700, fontSize: 13, padding: "8px 16px", borderRadius: 8, border: "none", cursor: "pointer", opacity: followupSubmitting ? 0.6 : 1 }}
+              >
+                {followupSubmitting ? "..." : "Submit"}
+              </button>
+            </div>
+          ) : (
+            <div style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 8, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ color: "#22C55E", fontWeight: 700, fontSize: 14 }}>{Math.round(followupResult.total_score)}</span>
+              <span style={{ color: "#94A3B8", fontSize: 12 }}>/ 100 on follow-up · {followupResult.feedback?.slice(0, 80)}...</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Bottom bar (52px) ──────────────────────────────────────────── */}
       <div style={{ flex: "0 0 52px", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px", background: "#0F1629", borderTop: "1px solid rgba(255,255,255,0.07)" }}>
@@ -2335,6 +2421,155 @@ function CodingInterviewPage({ token, user, onNav, onLogout, onResult }) {
   );
 }
 
+// ─── Resume Analyser Page ────────────────────────────────────────────────────
+function ResumeAnalyserPage({ token, user, onNav, onLogout }) {
+  const [dragging, setDragging]   = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [result, setResult]       = useState(null);
+  const [error, setError]         = useState("");
+  const fileInputRef              = useRef(null);
+
+  const card = { background: "#0F1629", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12 };
+
+  async function uploadFile(file) {
+    if (!file || !file.name.toLowerCase().endsWith(".pdf")) {
+      setError("Only PDF files are supported."); return;
+    }
+    setError(""); setUploading(true); setResult(null);
+    const fd = new FormData();
+    fd.append("file", file);
+    try {
+      const r = await fetch(`${API}/resume/analyse`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const d = await r.json();
+      if (!r.ok) { setError(d.detail || "Analysis failed."); }
+      else { setResult(d); }
+    } catch { setError("Could not reach server. Is the backend running?"); }
+    setUploading(false);
+  }
+
+  function onDrop(e) {
+    e.preventDefault(); setDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) uploadFile(file);
+  }
+
+  const atsColor = result
+    ? result.ats_score >= 75 ? "#22C55E" : result.ats_score >= 50 ? "#F59E0B" : "#EF4444"
+    : "#6366F1";
+
+  return (
+    <SidebarLayout active="resume" user={user} onNav={onNav} onLogout={onLogout}>
+      {/* Header */}
+      <div style={{ marginBottom: 20 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: "#fff", margin: 0 }}>Resume Analyser</h1>
+        <p style={{ color: "#64748B", fontSize: 13, margin: "4px 0 0" }}>Upload your resume — get ATS score, skill tags, and AI-generated interview questions</p>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: result ? "1fr 1.6fr" : "1fr", gap: 16 }}>
+        {/* Upload zone */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div
+            onDragOver={e => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={onDrop}
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              ...card, padding: 40, textAlign: "center", cursor: "pointer",
+              border: `2px dashed ${dragging ? "#6366F1" : "rgba(255,255,255,0.12)"}`,
+              background: dragging ? "rgba(99,102,241,0.06)" : "#0F1629",
+              transition: "all 0.2s",
+            }}
+          >
+            <input ref={fileInputRef} type="file" accept=".pdf" style={{ display: "none" }} onChange={e => uploadFile(e.target.files[0])} />
+            <div style={{ fontSize: 40, marginBottom: 12 }}>📄</div>
+            {uploading ? (
+              <>
+                <span className="spin" style={{ fontSize: 20, color: "#6366F1" }}>⟳</span>
+                <p style={{ color: "#6366F1", marginTop: 10, fontSize: 14, fontWeight: 600 }}>Analysing with AI...</p>
+                <p style={{ color: "#475569", fontSize: 12 }}>This may take 20–60 seconds</p>
+              </>
+            ) : (
+              <>
+                <p style={{ color: "#F1F5F9", fontWeight: 600, fontSize: 15, marginBottom: 6 }}>Drop your resume here</p>
+                <p style={{ color: "#64748B", fontSize: 13 }}>or click to upload · PDF only · max 5 MB</p>
+              </>
+            )}
+          </div>
+          {error && (
+            <div style={{ ...card, padding: 12, border: "1px solid rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.07)" }}>
+              <span style={{ color: "#EF4444", fontSize: 13 }}>⚠ {error}</span>
+            </div>
+          )}
+          {/* ATS score ring */}
+          {result && (
+            <div style={{ ...card, padding: 24, textAlign: "center" }}>
+              <div style={{ fontSize: 11, color: "#64748B", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>ATS Compatibility</div>
+              <div style={{ fontSize: 56, fontWeight: 800, color: atsColor, lineHeight: 1 }}>{result.ats_score}</div>
+              <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>/ 100</div>
+              <div style={{ marginTop: 12, fontSize: 13, color: atsColor, fontWeight: 600 }}>
+                {result.ats_score >= 75 ? "Strong resume ✓" : result.ats_score >= 50 ? "Needs improvement" : "Major gaps found"}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Results panel */}
+        {result && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }} className="fade-in">
+            {/* Skills */}
+            <div style={{ ...card, padding: 20 }}>
+              <div style={{ fontSize: 11, color: "#94A3B8", fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Detected Skills</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {result.skills.length > 0 ? result.skills.map((s, i) => (
+                  <span key={i} style={{ background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.25)", color: "#A5B4FC", fontSize: 12, fontWeight: 500, padding: "4px 12px", borderRadius: 99 }}>
+                    {s}
+                  </span>
+                )) : <span style={{ color: "#475569", fontSize: 13 }}>No skills detected</span>}
+              </div>
+            </div>
+
+            {/* Suggestions */}
+            <div style={{ ...card, padding: 20 }}>
+              <div style={{ fontSize: 11, color: "#94A3B8", fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>💡 Improvement Suggestions</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {result.suggestions.map((s, i) => (
+                  <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                    <span style={{ color: "#F59E0B", flexShrink: 0, marginTop: 1 }}>▸</span>
+                    <span style={{ color: "#CBD5E1", fontSize: 13, lineHeight: 1.5 }}>{s}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* AI Questions */}
+            <div style={{ ...card, padding: 20 }}>
+              <div style={{ fontSize: 11, color: "#94A3B8", fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>🤖 AI-Generated Interview Questions</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {result.questions.map((q, i) => (
+                  <div key={i} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: "12px 14px", display: "flex", gap: 12, alignItems: "flex-start" }}>
+                    <span style={{ color: "#6366F1", fontWeight: 700, fontSize: 13, flexShrink: 0 }}>Q{i + 1}</span>
+                    <span style={{ color: "#E2E8F0", fontSize: 13, lineHeight: 1.6 }}>{q}</span>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => onNav("interview")}
+                style={{ marginTop: 14, width: "100%", background: "#6366F1", color: "#fff", fontWeight: 700, fontSize: 14, padding: "12px", borderRadius: 8, border: "none", cursor: "pointer" }}
+              >
+                Start Interview Now →
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </SidebarLayout>
+  );
+}
+
 export default function App() {
   const [page, setPage] = useState("landing");
   const [token, setToken] = useState(() => localStorage.getItem("token") || "");
@@ -2368,6 +2603,7 @@ export default function App() {
     else if (dest === "profile") setPage("profile");
     else if (dest === "settings") setPage("settings");
     else if (dest === "coding")   setPage("coding");
+    else if (dest === "resume")   setPage("resume");
   }
 
   function handleUpdateUser(updatedUser) {
@@ -2392,6 +2628,7 @@ export default function App() {
       {page === "profile" && <ProfilePage token={token} {...sidebarProps} onUpdateUser={handleUpdateUser} />}
       {page === "settings" && <SettingsPage {...sidebarProps} />}
       {page === "coding"   && <CodingInterviewPage token={token} {...sidebarProps} onResult={r => { setLastResult(r); setPage("result"); }} />}
+      {page === "resume"   && <ResumeAnalyserPage token={token} {...sidebarProps} />}
     </>
   );
 }

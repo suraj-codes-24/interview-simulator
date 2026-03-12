@@ -1,0 +1,136 @@
+import fitz  # PyMuPDF
+import requests
+import json
+import re
+
+OLLAMA_URL = "http://localhost:11434/api/generate"
+MODEL_NAME = "qwen2.5-coder:7b"
+
+
+def extract_text(pdf_bytes: bytes) -> str:
+    """Extract all text from a PDF file given its raw bytes."""
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    text = ""
+    for page in doc:
+        text += page.get_text()
+    doc.close()
+    return text.strip()
+
+
+def analyse_resume(pdf_bytes: bytes) -> dict:
+    """
+    Full resume analysis pipeline:
+    1. Extract text from PDF
+    2. Ask Ollama for: skills, ats_score, suggestions, questions
+    Returns structured dict.
+    """
+    resume_text = extract_text(pdf_bytes)
+
+    if not resume_text or len(resume_text) < 50:
+        return {
+            "ats_score": 0,
+            "skills": [],
+            "suggestions": ["Could not extract text from the PDF. Please upload a text-based PDF."],
+            "questions": [],
+            "raw_text_preview": "",
+        }
+
+    # Truncate to avoid overloading the context window
+    truncated = resume_text[:3000]
+
+    prompt = f"""You are an expert technical recruiter and ATS system.
+
+Analyse the following resume and respond ONLY with valid JSON.
+
+Resume:
+{truncated}
+
+Respond with this exact JSON format:
+{{
+  "ats_score": <integer 0-100 — overall ATS compatibility>,
+  "skills": [<list of up to 12 technical skills found>],
+  "suggestions": [<list of 3-5 short improvement suggestions>],
+  "questions": [
+    "<interview question based on resume project or skill 1>",
+    "<interview question based on resume project or skill 2>",
+    "<interview question based on resume project or skill 3>",
+    "<interview question based on resume project or skill 4>",
+    "<interview question based on resume project or skill 5>"
+  ]
+}}
+
+Rules:
+- Output ONLY the JSON object, no explanation
+- questions must reference specific projects or skills from the resume
+- suggestions must be actionable and specific"""
+
+    try:
+        resp = requests.post(
+            OLLAMA_URL,
+            json={
+                "model":  MODEL_NAME,
+                "prompt": prompt,
+                "stream": False,
+                "options": {"temperature": 0.3, "num_predict": 600},
+            },
+            timeout=120,
+        )
+
+        if resp.status_code != 200:
+            return _fallback(resume_text)
+
+        raw = resp.json().get("response", "")
+        match = re.search(r'\{.*\}', raw, re.DOTALL)
+        if not match:
+            return _fallback(resume_text)
+
+        data = json.loads(match.group())
+        return {
+            "ats_score":          int(data.get("ats_score", 60)),
+            "skills":             data.get("skills", [])[:12],
+            "suggestions":        data.get("suggestions", [])[:5],
+            "questions":          data.get("questions", [])[:5],
+            "raw_text_preview":   resume_text[:300],
+        }
+
+    except requests.exceptions.ConnectionError:
+        return {
+            "ats_score": 0,
+            "skills": [],
+            "suggestions": ["Ollama is not running. Start it with: ollama serve"],
+            "questions": [],
+            "raw_text_preview": resume_text[:300],
+        }
+    except Exception:
+        return _fallback(resume_text)
+
+
+def _fallback(resume_text: str) -> dict:
+    """Rule-based extraction when Ollama is unavailable."""
+    TECH_KEYWORDS = [
+        "python", "javascript", "react", "fastapi", "django", "flask",
+        "postgresql", "mysql", "mongodb", "docker", "git", "linux",
+        "machine learning", "tensorflow", "pytorch", "java", "c++",
+        "typescript", "node.js", "aws", "redis", "kubernetes",
+    ]
+    text_lower = resume_text.lower()
+    skills = [k for k in TECH_KEYWORDS if k in text_lower]
+
+    word_count = len(resume_text.split())
+    ats_score = min(90, 40 + len(skills) * 4 + (20 if word_count > 200 else 0))
+
+    return {
+        "ats_score": ats_score,
+        "skills": skills[:12],
+        "suggestions": [
+            "Add measurable outcomes to your project descriptions.",
+            "Include a GitHub link for your projects.",
+            "Quantify achievements (e.g. '30% performance improvement').",
+        ],
+        "questions": [
+            "Can you walk me through one of your key projects?",
+            "What technologies are you most comfortable with?",
+            "Describe a challenging problem you solved recently.",
+        ],
+        "raw_text_preview": resume_text[:300],
+    }
