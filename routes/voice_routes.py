@@ -1,5 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from ai_engine.voice_engine import analyze_voice
+from core.logger import logger
 import tempfile
 import os
 
@@ -9,9 +10,8 @@ router = APIRouter()
 async def analyze_voice_answer(audio: UploadFile = File(...)):
     tmp_path = None
     try:
-        # Read all bytes async — fixes the shutil issue
         contents = await audio.read()
-        print(f"[DEBUG] Received: {len(contents)} bytes | type: {audio.content_type} | file: {audio.filename}")
+        logger.info("Voice upload: %d bytes | type: %s", len(contents), audio.content_type)
 
         if len(contents) == 0:
             raise HTTPException(status_code=400, detail="Empty audio file received")
@@ -27,15 +27,13 @@ async def analyze_voice_answer(audio: UploadFile = File(...)):
             tmp.write(contents)
             tmp_path = tmp.name
 
-        print(f"[DEBUG] Saved to: {tmp_path} | size: {os.path.getsize(tmp_path)} bytes")
-
         result = analyze_voice(tmp_path)
         return result
 
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[ERROR] Voice analysis failed: {str(e)}")
+        logger.error("Voice analysis failed: %s", e)
         raise HTTPException(status_code=500, detail=f"Voice analysis failed: {str(e)}")
 
     finally:
