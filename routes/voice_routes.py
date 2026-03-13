@@ -16,6 +16,9 @@ async def analyze_voice_answer(audio: UploadFile = File(...)):
         if len(contents) == 0:
             raise HTTPException(status_code=400, detail="Empty audio file received")
 
+        if len(contents) > 50 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="Audio file too large. Max 50 MB.")
+
         suffix = ".wav"
         if audio.filename and "." in audio.filename:
             suffix = "." + audio.filename.rsplit(".", 1)[-1]

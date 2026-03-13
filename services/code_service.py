@@ -1,3 +1,4 @@
+import ast
 import subprocess
 import tempfile
 import os
@@ -18,23 +19,56 @@ PROBLEMS = {
     },
 }
 
-# ── Safety blocklist ─────────────────────────────────────────────────────────
+# ── AST-based safety check ──────────────────────────────────────────────────
 
-BLOCKED = [
-    "import os", "import sys", "import subprocess", "import shutil",
-    "import socket", "import threading", "import multiprocessing",
-    "__import__", "open(", "exec(", "eval(", "compile(", "globals()",
-    "locals()", "getattr(", "setattr(", "delattr(",
-]
+BLOCKED_MODULES = {
+    "os", "sys", "subprocess", "shutil", "socket", "threading",
+    "multiprocessing", "signal", "ctypes", "importlib", "pathlib",
+}
+
+BLOCKED_BUILTINS = {
+    "exec", "eval", "compile", "__import__", "open",
+    "globals", "locals", "getattr", "setattr", "delattr",
+    "breakpoint", "input",
+}
 
 
 def _check_safety(code: str):
-    for token in BLOCKED:
-        if token in code:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Unsafe code detected: '{token}' is not allowed."
-            )
+    try:
+        tree = ast.parse(code)
+    except SyntaxError as e:
+        raise HTTPException(status_code=400, detail=f"Syntax error: {e.msg}")
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                mod = alias.name.split(".")[0]
+                if mod in BLOCKED_MODULES:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Blocked import: '{alias.name}' is not allowed.",
+                    )
+
+        if isinstance(node, ast.ImportFrom):
+            if node.module:
+                mod = node.module.split(".")[0]
+                if mod in BLOCKED_MODULES:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Blocked import: '{node.module}' is not allowed.",
+                    )
+
+        if isinstance(node, ast.Call):
+            name = None
+            if isinstance(node.func, ast.Name):
+                name = node.func.id
+            elif isinstance(node.func, ast.Attribute):
+                name = node.func.attr
+            if name and name in BLOCKED_BUILTINS:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Blocked function: '{name}()' is not allowed.",
+                )
 
 
 # ── Runner ───────────────────────────────────────────────────────────────────

@@ -32,8 +32,12 @@ def submit_and_score_answer(
 
     # --- Route to correct engine ---
     if question.type == "hr":
-        result = evaluate_hr_answer(question.question_text, user_answer)
-        nlp_score = result["hr_score"]
+        try:
+            result = evaluate_hr_answer(question.question_text, user_answer)
+            nlp_score = result["hr_score"]
+        except Exception:
+            nlp_score = 50.0
+            result = {"hr_score": 50, "feedback": "AI engine unavailable — default score applied."}
 
         # HR: 50% LLM + 30% Voice + 20% Face
         total_score = (nlp_score * 0.5) + (voice_score * 0.3) + (face_score * 0.2)
@@ -46,8 +50,12 @@ def submit_and_score_answer(
         engine_used     = "hr"
 
     else:
-        result = evaluate_answer(user_answer, question.ideal_answer, question.question_text)
-        nlp_score = result["overall_score"]
+        try:
+            result = evaluate_answer(user_answer, question.ideal_answer, question.question_text)
+            nlp_score = result["overall_score"]
+        except Exception:
+            nlp_score = 50.0
+            result = {"overall_score": 50, "feedback": "NLP engine error — default score applied."}
 
         # Technical: 70% NLP + 20% Voice + 10% Face
         total_score = (nlp_score * 0.7) + (voice_score * 0.2) + (face_score * 0.1)
