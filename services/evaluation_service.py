@@ -5,6 +5,7 @@ from models.question import Question
 from models.interview_session import InterviewSession
 from ai_engine.nlp_engine import evaluate_answer
 from ai_engine.hr_engine import evaluate_hr_answer
+from core.logger import logger
 
 
 def submit_and_score_answer(
@@ -35,7 +36,8 @@ def submit_and_score_answer(
         try:
             result = evaluate_hr_answer(question.question_text, user_answer)
             nlp_score = result["hr_score"]
-        except Exception:
+        except Exception as e:
+            logger.error("HR engine failed for question %d: %s", question_id, e)
             nlp_score = 50.0
             result = {"hr_score": 50, "feedback": "AI engine unavailable — default score applied."}
 
@@ -53,7 +55,8 @@ def submit_and_score_answer(
         try:
             result = evaluate_answer(user_answer, question.ideal_answer, question.question_text)
             nlp_score = result["overall_score"]
-        except Exception:
+        except Exception as e:
+            logger.error("NLP engine failed for question %d: %s", question_id, e)
             nlp_score = 50.0
             result = {"overall_score": 50, "feedback": "NLP engine error — default score applied."}
 

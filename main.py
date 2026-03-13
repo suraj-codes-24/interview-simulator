@@ -1,5 +1,5 @@
 import os
-import logging
+import time
 import imageio_ffmpeg
 os.environ["PATH"] += os.pathsep + os.path.dirname(imageio_ffmpeg.get_ffmpeg_exe())
 
@@ -7,15 +7,8 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from core.logger import logger
 
-# ── Structured logging ───────────────────────────────────────────────────────
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-logger = logging.getLogger("interview_api")
 from routes.auth_routes import router as auth_router
 from routes.interview_routes import router as interview_router
 from routes.answer_routes import router as answer_router
@@ -56,6 +49,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Request logging middleware ────────────────────────────────────────────────
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start = time.time()
+    response = await call_next(request)
+    ms = round((time.time() - start) * 1000, 1)
+    logger.info("%s %s | %d | %.1fms", request.method, request.url.path, response.status_code, ms)
+    return response
+
 
 app.include_router(auth_router)
 app.include_router(interview_router)
