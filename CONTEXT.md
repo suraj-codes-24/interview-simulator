@@ -126,12 +126,12 @@
 | questions | id, subject_id, topic_id, subtopic_id, title, difficulty, type, question_text, ideal_answer, tags, companies |
 | interview_sessions | id, user_id, interview_type, subject_id, topic_id, subtopic_id, difficulty, status, total_questions, questions_answered, start_time, end_time, final_score |
 | answers | id, session_id, question_id, user_answer, semantic_score, keyword_score, depth_score, structure_score, nlp_score, voice_score, face_score, total_score, feedback |
-| user_preferences | id, user_id, preferred_topics, difficulty_level, interview_type_preference (unused) |
 
-### Dropped Tables (Phase 5b)
-- `scores` — merged into answers columns
-- `analytics` — never written to
-- `conversation_memory` — redundant with answers
+### Dropped Tables
+- `scores` — merged into answers columns (Phase 5b)
+- `analytics` — never written to (Phase 5b)
+- `conversation_memory` — redundant with answers (Phase 5b)
+- `user_preferences` — never used, no model (Phase 14)
 
 ---
 
@@ -215,7 +215,7 @@ interview_simulator/
 | Whisper on CPU (torch.cuda not detected) | Open - fix in Phase 13 |
 | Parselmouth pitch = 0 Hz occasionally | Covered (librosa fallback) |
 | mediapipe MUST be 0.10.11 on Windows | Constraint - do NOT upgrade |
-| user_preferences table has no model | Open - add model or drop table |
+| user_preferences table dropped | Fixed |
 
 ---
 

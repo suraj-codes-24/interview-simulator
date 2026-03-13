@@ -110,7 +110,6 @@ Voice: 25% pace + 25% filler + 20% confidence + 15% silence + 15% energy
 - Whisper runs on CPU (torch.cuda not detecting GPU) — needs fix in Phase 13
 - Parselmouth pitch occasionally returns 0 Hz (librosa fallback covers it)
 - mediapipe MUST be version `0.10.11` on Windows — do not upgrade
-- `user_preferences` DB table exists but has no model and is never used
 
 ## Do NOT
 - Upgrade mediapipe beyond 0.10.11
