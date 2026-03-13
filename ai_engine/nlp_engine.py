@@ -182,6 +182,46 @@ CONCEPT_MAP = {
         "synonyms": ["sort", "sorting algorithms", "merge sort", "quick sort", "heap sort", "bubble sort"]
     },
 
+    "prefix sum": {
+        "core": ["prefix array", "cumulative sum", "range query", "preprocessing", "running total"],
+        "ops": ["build prefix array", "range sum query", "difference array", "2D prefix sum"],
+        "props": ["O(n) build", "O(1) range query", "trade space for time", "immutable array assumption"],
+        "uses": ["range sum queries", "subarray sum equals K", "product except self", "count subarrays", "image blurring"],
+        "synonyms": ["prefix sum", "cumulative sum", "running sum", "partial sums", "scan"]
+    },
+
+    "kadane": {
+        "core": ["maximum subarray", "local maximum", "global maximum", "running sum", "reset to zero"],
+        "ops": ["track current sum", "reset if negative", "update global max", "handle all negative"],
+        "props": ["O(n) time", "O(1) space", "single pass", "dynamic programming variant"],
+        "uses": ["maximum subarray sum", "maximum product subarray", "circular array max sum", "stock profit"],
+        "synonyms": ["kadane", "kadane algorithm", "maximum subarray", "maximum contiguous sum"]
+    },
+
+    "dutch flag": {
+        "core": ["three way partition", "low pointer", "mid pointer", "high pointer", "three colors"],
+        "ops": ["swap low mid", "advance mid", "swap mid high", "decrement high"],
+        "props": ["O(n) time", "O(1) space", "in-place", "single pass", "three partitions"],
+        "uses": ["sort 0s 1s 2s", "partition around pivot", "segregate even odd", "quicksort pivot"],
+        "synonyms": ["dutch national flag", "three way partition", "dijkstra partition", "3-way partition"]
+    },
+
+    "cyclic sort": {
+        "core": ["place at correct index", "swap to position", "range 1 to n", "missing numbers", "duplicates"],
+        "ops": ["check correct position", "swap to num-1 index", "advance if correct", "scan for missing"],
+        "props": ["O(n) time", "O(1) space", "works for range 1 to n", "in-place"],
+        "uses": ["find missing number", "find duplicate", "find all missing", "first missing positive"],
+        "synonyms": ["cyclic sort", "index sort", "placement sort"]
+    },
+
+    "lru cache": {
+        "core": ["least recently used", "hashmap", "doubly linked list", "capacity", "eviction", "O(1) operations"],
+        "ops": ["get", "put", "move to front", "evict tail", "update existing"],
+        "props": ["O(1) get and put", "capacity bounded", "doubly linked list for order", "hashmap for lookup"],
+        "uses": ["browser cache", "database query cache", "OS page replacement", "CDN cache", "session cache"],
+        "synonyms": ["LRU", "LRU cache", "least recently used cache", "cache eviction", "LFU cache"]
+    },
+
     "recursion": {
         "core": ["base case", "recursive call", "call stack", "self similar subproblem", "stack frame"],
         "ops": ["define base case", "break into smaller problem", "combine results", "memoize"],
