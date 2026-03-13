@@ -12,7 +12,7 @@ from models.question import Question
 from models.interview_session import InterviewSession
 from models.user import User
 from models.answer import Answer
-from models.score import Score
+
 from data.question_bank import QUESTION_BANK
 
 
@@ -232,7 +232,6 @@ def seed_all(db: Session) -> dict:
 
     # ── 1. Clear existing data (respect FK order) ────────────────────────
     db.query(Answer).delete()
-    db.query(Score).delete()
     db.query(Question).delete()
     db.query(Subtopic).delete()
     db.query(Topic).delete()

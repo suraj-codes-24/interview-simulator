@@ -9,7 +9,7 @@ from models.subtopic import Subtopic
 from models.question import Question
 from models.interview_session import InterviewSession
 from models.answer import Answer
-from models.score import Score
+
 
 print("Dropping schema public cascade...")
 with engine.connect() as conn:
